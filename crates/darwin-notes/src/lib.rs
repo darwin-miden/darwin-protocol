@@ -13,10 +13,26 @@
 pub const DEPOSIT_NOTE_MASM: &str = include_str!("../asm/deposit_note.masm");
 pub const REDEEM_NOTE_MASM: &str = include_str!("../asm/redeem_note.masm");
 
+/// Self-contained atomic deposit note that runs real u64 division on
+/// the deposit value. Wraps `darwin::math::felt_div`. Validated by
+/// `darwin-protocol-account`'s `atomic_deposit_note.rs` integration
+/// tests — the program assembles via miden-protocol 0.14's NoteScript
+/// and the math executes correctly under miden-vm 0.22.
+///
+/// Compared to `DEPOSIT_NOTE_MASM` (the spec-level skeleton with
+/// kernel calls), this is the minimal compute-only body that ships
+/// today. The kernel-aware version (with note::move_assets +
+/// basket_faucet::mint cross-account call) lands next.
+pub const ATOMIC_DEPOSIT_NOTE_MASM: &str = include_str!("../asm/atomic_deposit_note.masm");
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DarwinNote {
     Deposit,
     Redeem,
+    /// Atomic deposit note — compute-only body that uses
+    /// `darwin::math::felt_div` directly. Used today; the full
+    /// kernel-aware version comes next.
+    AtomicDeposit,
 }
 
 impl DarwinNote {
@@ -24,6 +40,7 @@ impl DarwinNote {
         match self {
             DarwinNote::Deposit => DEPOSIT_NOTE_MASM,
             DarwinNote::Redeem => REDEEM_NOTE_MASM,
+            DarwinNote::AtomicDeposit => ATOMIC_DEPOSIT_NOTE_MASM,
         }
     }
 
@@ -33,6 +50,7 @@ impl DarwinNote {
         match self {
             DarwinNote::Deposit => "deposit-note",
             DarwinNote::Redeem => "redeem-note",
+            DarwinNote::AtomicDeposit => "atomic-deposit-note",
         }
     }
 
@@ -55,6 +73,7 @@ impl DarwinNote {
                 "miden::note",
                 "miden::account",
             ],
+            DarwinNote::AtomicDeposit => &["darwin::math"],
         }
     }
 }
@@ -93,17 +112,31 @@ mod tests {
     fn note_sources_are_non_empty() {
         assert!(!DEPOSIT_NOTE_MASM.trim().is_empty());
         assert!(!REDEEM_NOTE_MASM.trim().is_empty());
+        assert!(!ATOMIC_DEPOSIT_NOTE_MASM.trim().is_empty());
     }
 
     #[test]
     fn note_sources_differ() {
         assert_ne!(DEPOSIT_NOTE_MASM, REDEEM_NOTE_MASM);
+        assert_ne!(DEPOSIT_NOTE_MASM, ATOMIC_DEPOSIT_NOTE_MASM);
     }
 
     #[test]
     fn note_ids_are_stable_kebab_case() {
         assert_eq!(DarwinNote::Deposit.id(), "deposit-note");
         assert_eq!(DarwinNote::Redeem.id(), "redeem-note");
+        assert_eq!(DarwinNote::AtomicDeposit.id(), "atomic-deposit-note");
+    }
+
+    #[test]
+    fn atomic_deposit_note_imports_darwin_math() {
+        let source = DarwinNote::AtomicDeposit.masm_source();
+        assert!(source.contains("use darwin::math"));
+        assert!(source.contains("exec.math::felt_div"));
+        assert_eq!(
+            DarwinNote::AtomicDeposit.imported_libraries(),
+            &["darwin::math"],
+        );
     }
 
     #[test]

@@ -24,3 +24,4 @@ miden-core-lib = { workspace = true }
 [dev-dependencies]
 miden-vm = { workspace = true }
 miden-stdlib = "0.19"
+darwin-notes = { path = "../darwin-notes" }

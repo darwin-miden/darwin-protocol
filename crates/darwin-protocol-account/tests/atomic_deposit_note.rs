@@ -46,25 +46,11 @@ fn atomic_deposit_note_assembles_with_darwin_math() {
         .assemble_library([math_module])
         .expect("darwin::math assembles");
 
-    // 2. The atomic deposit note's body. Today this is the math-only
-    //    skeleton — the kernel-aware version comes later. The inputs
-    //    correspond to spec §7.1: (deposit_value_x1e8, current_nav_x1e8,
-    //    fee_factor_x1e8). The script computes
-    //    mint_amount = (deposit_value * (10000 - fee_bps)) / (10000 * nav).
-    let note_source = "
-use darwin::math
-
-begin
-    # Stack on entry (in order popped from inputs):
-    #   [deposit_value_x1e8, nav_x1e8, fee_factor]
-    # Stack on exit:
-    #   [mint_amount]
-
-    # First: deposit_value * fee_factor (fee_factor already in 1e8 scale)
-    mul                          # [deposit_value * fee_factor, nav_x1e8]
-    exec.math::felt_div          # [mint_amount]
-end
-";
+    // 2. Pull the atomic deposit note source from the canonical
+    //    `darwin-notes` library — this is the same constant the SDK
+    //    builds notes from. We assemble it here to prove it compiles
+    //    against the v0.22 toolchain attached to darwin::math.
+    let note_source = darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM;
 
     let program = Assembler::default()
         .with_static_library(core_lib.as_ref())

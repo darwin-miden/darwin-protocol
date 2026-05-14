@@ -435,6 +435,7 @@ name = "darwin-protocol-account"
 version = "0.1.0"
 dependencies = [
  "darwin-baskets",
+ "darwin-notes",
  "miden-assembly 0.22.3",
  "miden-base",
  "miden-core-lib",

@@ -1,0 +1,43 @@
+# Atomic DepositNote — Flow A in one note.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §7.1.
+#
+# Consumed by the Darwin Protocol Account. Computes the user's mint
+# amount on-chain from the deposit value, the current basket NAV, and
+# the protocol's fee parameters, all via darwin::math::felt_div.
+#
+# The math executed here is identical to the on-chain controller
+# bodies in `darwin-protocol-account/src/bin/build_real_bodies_package.rs`,
+# so the note's output and the controller's `compute_mint_amount`
+# always agree.
+#
+# Inputs (pushed onto the stack in the order shown — note that MASM
+# operations consume from the top of the stack, so the first input is
+# `deposit_value_x1e8`):
+#
+#   [deposit_value_x1e8, nav_x1e8, fee_factor]
+#
+#   deposit_value_x1e8 — USD value of the deposit assets, fixed-point
+#                        with 8 decimals (e.g. $100.00 → 10000_00000000).
+#   nav_x1e8           — current basket NAV per share, 8-decimal scale.
+#   fee_factor         — pre-computed (10000 - fee_bps), unit-scaled to
+#                        match the nav scale. The SDK constructs this
+#                        from BasketManifest::fees::mint_fee_bps.
+#
+# Output stack: [mint_amount]
+#
+# This source is also used by the integration test
+# `atomic_deposit_note_assembles_with_darwin_math` in
+# `darwin-protocol-account/tests/atomic_deposit_note.rs`, which
+# wraps the assembled Program as a `miden_protocol::note::NoteScript`
+# — the type `miden-client::Client::new_transaction` consumes.
+
+use darwin::math
+
+begin
+    # Stack on entry:   [deposit_value, nav, fee_factor]
+    # After `mul`:      [deposit_value * fee_factor, nav]
+    # After felt_div:   [mint_amount]
+    mul
+    exec.math::felt_div
+end
