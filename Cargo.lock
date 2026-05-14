@@ -432,6 +432,7 @@ dependencies = [
  "darwin-baskets",
  "miden-objects",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 

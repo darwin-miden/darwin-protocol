@@ -3,14 +3,17 @@
 //! - `DEPOSIT_NOTE_MASM`: mint flow (Flow A).
 //! - `REDEEM_NOTE_MASM`:  burn flow (Miden-side of Flow C).
 //!
-//! The MASM sources are bundled at compile time; once the Miden toolchain
-//! is enabled in the workspace, `serialise_to_masp()` will build the
-//! `.masp` packages consumed by miden-client.
+//! The MASM sources are bundled at compile time. Production
+//! consumption goes through `NoteScript::fromPackage(.masp)` once the
+//! `miden-objects` and `miden-tx` ecosystem stabilises on the
+//! `miden-assembly` 0.23 line that the Darwin libraries target — until
+//! then, `serialise_to_masp` is documented but unimplemented (see the
+//! progress log in darwin-docs).
 
 pub const DEPOSIT_NOTE_MASM: &str = include_str!("../asm/deposit_note.masm");
 pub const REDEEM_NOTE_MASM: &str = include_str!("../asm/redeem_note.masm");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DarwinNote {
     Deposit,
     Redeem,
@@ -23,6 +26,63 @@ impl DarwinNote {
             DarwinNote::Redeem => REDEEM_NOTE_MASM,
         }
     }
+
+    /// Canonical kebab-case identifier used in tooling logs and config
+    /// files. Stable across DarwinNote renames in Rust.
+    pub fn id(self) -> &'static str {
+        match self {
+            DarwinNote::Deposit => "deposit-note",
+            DarwinNote::Redeem => "redeem-note",
+        }
+    }
+
+    /// Returns the imports the note script references. Useful for
+    /// tooling that pre-resolves library dependencies before invoking
+    /// the assembler.
+    pub fn imported_libraries(self) -> &'static [&'static str] {
+        match self {
+            DarwinNote::Deposit => &[
+                "darwin::basket_controller",
+                "darwin::oracle_adapter",
+                "darwin::basket_faucet",
+                "miden::note",
+                "miden::account",
+            ],
+            DarwinNote::Redeem => &[
+                "darwin::basket_controller",
+                "darwin::oracle_adapter",
+                "darwin::basket_faucet",
+                "miden::note",
+                "miden::account",
+            ],
+        }
+    }
+}
+
+/// Inputs the off-chain SDK serialises into a `DepositNote` before
+/// submission. Mirrors §7.1 of the M1 spec.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DepositNoteInputs {
+    /// One (faucet_id, amount) pair per asset the user is depositing.
+    pub assets: Vec<(u64, u64)>,
+    /// The user's wallet that will receive the basket-token note.
+    pub recipient_account_id: u64,
+    /// Latest block at which this note may be consumed.
+    pub expiry_block: u64,
+}
+
+/// Inputs the off-chain SDK serialises into a `RedeemNote`.
+/// Mirrors §6.5 / §7.2 of the M1 spec.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RedeemNoteInputs {
+    /// Amount of basket token to burn (basket-faucet base units).
+    pub burn_amount: u64,
+    /// Wallet that will receive the redeemed underlyings.
+    pub recipient_account_id: u64,
+    /// Latest block at which this note may be consumed.
+    pub expiry_block: u64,
+    /// Identifier of the basket being redeemed (the basket faucet id).
+    pub basket_id: u64,
 }
 
 #[cfg(test)]
@@ -38,5 +98,47 @@ mod tests {
     #[test]
     fn note_sources_differ() {
         assert_ne!(DEPOSIT_NOTE_MASM, REDEEM_NOTE_MASM);
+    }
+
+    #[test]
+    fn note_ids_are_stable_kebab_case() {
+        assert_eq!(DarwinNote::Deposit.id(), "deposit-note");
+        assert_eq!(DarwinNote::Redeem.id(), "redeem-note");
+    }
+
+    #[test]
+    fn deposit_note_imports_match_source_use_statements() {
+        for path in DarwinNote::Deposit.imported_libraries() {
+            assert!(
+                DEPOSIT_NOTE_MASM.contains(&format!("use.{path}"))
+                    || DEPOSIT_NOTE_MASM.contains(&format!("use {path}")),
+                "DepositNote source does not import {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn redeem_note_imports_match_source_use_statements() {
+        for path in DarwinNote::Redeem.imported_libraries() {
+            assert!(
+                REDEEM_NOTE_MASM.contains(&format!("use.{path}"))
+                    || REDEEM_NOTE_MASM.contains(&format!("use {path}")),
+                "RedeemNote source does not import {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn deposit_inputs_round_trip_via_serde() {
+        let inputs = DepositNoteInputs {
+            assets: vec![(0xDEAD, 1_000), (0xBEEF, 500)],
+            recipient_account_id: 0x1234,
+            expiry_block: 695_500,
+        };
+        let json = serde_json::to_string(&inputs).expect("serialise");
+        let decoded: DepositNoteInputs = serde_json::from_str(&json).expect("deserialise");
+        assert_eq!(decoded.assets, inputs.assets);
+        assert_eq!(decoded.recipient_account_id, inputs.recipient_account_id);
+        assert_eq!(decoded.expiry_block, inputs.expiry_block);
     }
 }
