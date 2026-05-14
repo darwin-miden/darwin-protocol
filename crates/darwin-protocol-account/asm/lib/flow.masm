@@ -1,0 +1,76 @@
+# Higher-level wrappers that compose the math primitives in nav.masm,
+# mint.masm, fees.masm, and redeem.masm into full Flow A / Flow C
+# building blocks.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §9 (Flow A) and §6.5
+# (Flow C). These procedures are the closest MASM-level analogue of
+# what the DepositNote / RedeemNote scripts will execute on the
+# protocol account; they take pure values as inputs (no storage reads
+# yet — storage integration comes once miden-tx is wired in).
+
+use darwin::nav
+use darwin::mint
+use darwin::fees
+use darwin::redeem
+
+#! mint_amount_for_3_asset_deposit composes nav + mint for a basket
+#! with exactly three constituents (the M1 Core Crypto layout).
+#!
+#! Stack on entry:
+#!     [p1, q1, p2, q2, p3, q3, fee_bps, pre_supply, pre_nav]
+#!
+#! Stack on exit:
+#!     [mint_amount]
+#!
+#! Equivalent to:
+#!     deposit_value = nav::weighted_sum_3(p, q)
+#!     mint_amount   = mint::standard(deposit_value, fee_bps, pre_supply, pre_nav)
+pub proc mint_amount_for_3_asset_deposit
+    exec.nav::weighted_sum_3   # [deposit_value, fee_bps, pre_supply, pre_nav]
+    exec.mint::standard        # [mint_amount]
+end
+
+#! mint_amount_for_2_asset_deposit — Aggressive basket variant.
+#!
+#! Stack on entry:
+#!     [p1, q1, p2, q2, fee_bps, pre_supply, pre_nav]
+#! Stack on exit:
+#!     [mint_amount]
+pub proc mint_amount_for_2_asset_deposit
+    exec.nav::weighted_sum_2
+    exec.mint::standard
+end
+
+#! mint_amount_for_4_asset_deposit — Conservative basket variant.
+#!
+#! Stack on entry:
+#!     [p1, q1, p2, q2, p3, q3, p4, q4, fee_bps, pre_supply, pre_nav]
+#! Stack on exit:
+#!     [mint_amount]
+pub proc mint_amount_for_4_asset_deposit
+    exec.nav::weighted_sum_4
+    exec.mint::standard
+end
+
+#! release_amount_for_constituent computes how much of a single
+#! constituent asset to release to the user during a redemption. It
+#! deducts the redeem fee from the gross redeem value, then applies
+#! the constituent's target weight and current price.
+#!
+#! Stack on entry:
+#!     [redeem_value_usd, redeem_fee_bps, weight_bps, price]
+#! Stack on exit:
+#!     [release_amount]
+#!
+#! The fee amount is computed but dropped — the calling note script
+#! is responsible for accruing it to the fee slot before calling this
+#! procedure once per constituent.
+pub proc release_amount_for_constituent
+    # Stack: [redeem_value_usd, redeem_fee_bps, weight_bps, price]
+    exec.fees::deduct_bps_fee
+    # Stack: [net_value_usd, fee_amount, weight_bps, price]
+    swap drop
+    # Stack: [net_value_usd, weight_bps, price]
+    exec.redeem::release_amount
+    # Stack: [release_amount]
+end
