@@ -1,0 +1,113 @@
+# Basket-token mint amount computation.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §6.3.
+#
+# Two flavours of the mint formula:
+#
+#   * par_value:    used on the first deposit (basket supply == 0).
+#                   1 basket token = $1, so mint_amount equals the
+#                   fee-adjusted deposit value directly.
+#   * standard:     used once a positive supply exists.
+#                   mint_amount = deposit_after_fee * pre_supply / pre_nav
+#                                                                   per-share.
+#
+# Limitations and follow-ups
+# --------------------------
+#
+# Both procedures use `u32div` for the final division, which requires
+# the operands to fit in u32 (~4.29e9). Realistic on-chain values do
+# not always satisfy this — a $1,000 deposit in USD*1e8 units is 1e11,
+# which overflows. The intermediate multiplication `deposit_value *
+# (10000 - fee_bps)` exists in felt space and does NOT overflow
+# Goldilocks (~1.84e19), but the subsequent `u32div` by 10000 can.
+#
+# A production-grade implementation will:
+#
+#   1. Pull `std::math::u64::div` from miden-stdlib once a v0.23-aligned
+#      version is available, or
+#   2. Carry deposit values at a coarser scale (e.g. cents instead of
+#      USD*1e8) so dividends fit in u32 across realistic basket sizes,
+#      or
+#   3. Implement schoolbook long division over four u32 limbs of a u128.
+#
+# Until then, the tests below use operand sizes that fit in u32 to
+# validate the math semantics. The compute_nav side of the spec already
+# accepts this trade-off (see nav.masm).
+
+const FEE_BPS_DENOMINATOR = 10000
+
+#! par_value computes the very first mint into a basket (supply was 0
+#! at entry), at par-value.
+#!
+#! Stack on entry:   [deposit_value, fee_bps]
+#!   where deposit_value = total USD value of the deposit in the
+#!                         protocol's chosen scale (USD * 1e8) and
+#!         fee_bps       = mint fee, in basis points (0..=10000).
+#!
+#! Stack on exit:    [mint_amount]
+#!   where mint_amount   = deposit_value * (10000 - fee_bps) / 10000
+#!                         in basket-token base units (8 decimals).
+#!
+#! Because the spec chooses basket_faucet_decimals == 8 to match the
+#! Pragma price scale of e8, deposit_value and mint_amount share the
+#! same numerical magnitude at par-value: $X => X * 1e8 in both
+#! quantities. Hence no rescaling is needed beyond the fee.
+pub proc par_value
+    # Stack: [deposit_value, fee_bps]
+    # Compute (FEE_BPS_DENOMINATOR - fee_bps).
+    push.FEE_BPS_DENOMINATOR
+    # Stack: [10000, deposit_value, fee_bps]
+    movup.2
+    # Stack: [fee_bps, 10000, deposit_value]
+    sub
+    # Stack: [10000 - fee_bps, deposit_value]
+    mul
+    # Stack: [deposit_value * (10000 - fee_bps)]
+    push.FEE_BPS_DENOMINATOR
+    # Stack: [10000, ...] — u32div consumes divisor first
+    u32div
+    # Stack: [mint_amount]
+end
+
+#! standard computes a mint when a positive supply already exists.
+#!
+#! Stack on entry:   [deposit_value, fee_bps, pre_supply, pre_nav]
+#!   where deposit_value = USD * 1e8 value of the deposit,
+#!         fee_bps       = mint fee in bps,
+#!         pre_supply    = existing basket-token supply (8 decimals),
+#!         pre_nav       = per-share NAV (USD * 1e8).
+#!
+#! Stack on exit:    [mint_amount]
+#!   where mint_amount = (deposit_value * (10000 - fee_bps)
+#!                        * pre_supply) / (10000 * pre_nav)
+#!
+#! Identical scale conventions to par_value. The procedure folds the
+#! fee-bps denominator and pre_nav into a single divisor to minimise
+#! truncation error before the final u32div.
+pub proc standard
+    # Stack: [deposit_value, fee_bps, pre_supply, pre_nav]
+
+    # Step 1: numerator = deposit_value * (10000 - fee_bps) * pre_supply
+    push.FEE_BPS_DENOMINATOR
+    # [10000, deposit_value, fee_bps, pre_supply, pre_nav]
+    movup.2
+    # [fee_bps, 10000, deposit_value, pre_supply, pre_nav]
+    sub
+    # [10000 - fee_bps, deposit_value, pre_supply, pre_nav]
+    mul
+    # [deposit_value * (10000 - fee_bps), pre_supply, pre_nav]
+    mul
+    # [numerator, pre_nav]    where numerator = deposit_value * (10000 - fee_bps) * pre_supply
+
+    # Step 2: divisor = 10000 * pre_nav
+    push.FEE_BPS_DENOMINATOR
+    # [10000, numerator, pre_nav]
+    movup.2
+    # [pre_nav, 10000, numerator]
+    mul
+    # [divisor, numerator]    where divisor = 10000 * pre_nav
+
+    # Step 3: mint_amount = numerator / divisor. u32div pops divisor first.
+    u32div
+    # [mint_amount]
+end
