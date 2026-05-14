@@ -63,4 +63,38 @@ mod tests {
             let _f = BasketFaucet::from_manifest(&manifest);
         }
     }
+
+    #[test]
+    fn synthetic_origin_addresses_are_distinct_per_basket() {
+        let mut seen = std::collections::HashSet::new();
+        for manifest in darwin_baskets::all_m1() {
+            let addr = BasketFaucet::from_manifest(&manifest).synthetic_origin_address();
+            assert!(
+                seen.insert(addr),
+                "{} produced a duplicate synthetic origin address",
+                manifest.symbol,
+            );
+        }
+    }
+
+    #[test]
+    fn faucet_decimals_round_trip_from_manifest() {
+        for manifest in darwin_baskets::all_m1() {
+            let f = BasketFaucet::from_manifest(&manifest);
+            assert_eq!(f.decimals, manifest.basket_faucet_decimals);
+            assert!(f.decimals <= 18, "decimals out of range: {}", f.decimals);
+        }
+    }
+
+    #[test]
+    fn synthetic_origin_address_for_dag_is_zero_padded() {
+        let m = darwin_baskets::aggressive();
+        let addr = BasketFaucet::from_manifest(&m).synthetic_origin_address();
+        assert_eq!(&addr[..3], b"DAG");
+        // Bytes past the symbol are zero (placeholder derivation
+        // until Keccak-256 lands).
+        for b in &addr[3..] {
+            assert_eq!(*b, 0);
+        }
+    }
 }
