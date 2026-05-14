@@ -16,16 +16,24 @@ repository = "https://github.com/darwin-miden/darwin-protocol"
 [workspace.dependencies]
 darwin-baskets = { git = "ssh://git@github.com/darwin-miden/darwin-baskets.git" }
 
-# Miden dependencies — pinned to v0.14-aligned commits.
-# Once midenup + miden-base + miden-client + miden-agglayer are available
-# in the local toolchain, uncomment the entries below and add them to the
-# per-crate Cargo.toml dependency sections.
+# Miden dependencies. Versions verified against crates.io on 2026-05-14:
 #
-# miden-base       = { git = "https://github.com/0xMiden/protocol", branch = "next" }
-# miden-client     = { git = "https://github.com/0xMiden/miden-client", branch = "main" }
+#   miden-assembly   v0.23.0  (2026-05-09)
+#   miden-base       v0.12.0  (2026-04-16)
+#   miden-client     v0.14.8  (2026-05-11)
+#   miden-objects    v0.12.4  (2025-11-26)
+#
+# miden-agglayer is not on crates.io yet (tagged v0.14-alpha in the
+# `next` branch of 0xMiden/protocol). Pin via git when enabling.
+#
+# Uncomment the block below once `midenup` is installed locally and the
+# per-crate Cargo.toml dependency sections are updated to use these.
+#
+# miden-assembly   = "0.23"
+# miden-base       = "0.12"
+# miden-client     = "0.14"
+# miden-objects    = "0.12"
 # miden-agglayer   = { git = "https://github.com/0xMiden/protocol", branch = "next" }
-# miden-assembly   = { git = "https://github.com/0xMiden/protocol", branch = "next" }
-# miden-objects    = { git = "https://github.com/0xMiden/protocol", branch = "next" }
 
 serde     = { version = "1", features = ["derive"] }
 thiserror = "1"

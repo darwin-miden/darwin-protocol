@@ -10,11 +10,11 @@
 //! crate exposes the storage-slot layout, the controller's procedure
 //! surface, and a builder API as plain Rust types.
 
-pub mod storage;
 pub mod component;
+pub mod storage;
 
 pub use component::DarwinBasketController;
-pub use storage::{StorageSlot, StorageLayout};
+pub use storage::{StorageLayout, StorageSlot};
 
 /// Re-exports of the basket manifest types this controller depends on.
 pub use darwin_baskets::{BasketManifest, Constituent};
