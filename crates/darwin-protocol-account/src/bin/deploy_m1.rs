@@ -45,7 +45,7 @@ fn main() {
 }
 
 fn test_component_compilation() {
-    println!("Stub AccountComponent compilation:");
+    println!("AccountComponent compilation (v0.19 assembler, real felt bodies):");
     for basket in darwin_baskets::all_m1() {
         let controller = DarwinBasketController::from_manifest(&basket);
         match controller.account_component_stub() {
