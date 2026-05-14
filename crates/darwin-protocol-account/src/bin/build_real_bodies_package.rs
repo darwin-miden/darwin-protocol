@@ -181,6 +181,29 @@ fn main() {
         .write_to_file(&out_path)
         .unwrap_or_else(|e| panic!("write {}: {}", out_path.display(), e));
 
+    // Print the MAST root of each exported procedure so a transaction
+    // script can use `call.<root>` to invoke them on-chain.
+    println!("Controller procedures (MAST roots):");
+    for module_info in package.mast.module_infos() {
+        for (_, proc_info) in module_info.procedures() {
+            let w = proc_info.digest;
+            // `call.0x<hex>` accepts a 64-char hex word, little-endian
+            // per felt.
+            let bytes: Vec<u8> = w
+                .as_elements()
+                .iter()
+                .flat_map(|f| f.as_canonical_u64().to_le_bytes())
+                .collect();
+            let hex: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+            println!(
+                "  {}::{:<28} call.0x{}",
+                module_info.path(),
+                proc_info.name,
+                hex,
+            );
+        }
+    }
+
     let size = std::fs::metadata(&out_path).map(|m| m.len()).unwrap_or(0);
     println!("Wrote {} ({} bytes)", out_path.display(), size);
     println!("Package id: {}", package.name);

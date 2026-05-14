@@ -3,41 +3,42 @@
 # Spec: darwin-docs/m1-architecture-spec.md §7.1.
 #
 # Consumed by the Darwin Protocol Account. Computes the user's mint
-# amount on-chain from the deposit value, the current basket NAV, and
-# the protocol's fee parameters, all via darwin::math::felt_div.
+# amount on-chain via darwin::math::felt_div, which executes real
+# u64 division through miden::core::math::u64::div (miden-core-lib
+# 0.22 event handler).
 #
-# The math executed here is identical to the on-chain controller
-# bodies in `darwin-protocol-account/src/bin/build_real_bodies_package.rs`,
-# so the note's output and the controller's `compute_mint_amount`
-# always agree.
+# This is the "demo" version of the note: it hard-codes the deposit
+# value, basket NAV, and fee factor as constants on the stack so the
+# math runs end-to-end without needing the off-chain SDK to push note
+# inputs through the advice provider. The kernel-aware version
+# (asm/deposit_note.masm) is the §7.1 production layout — wired in
+# once cross-component calls into the basket faucet are ready.
 #
-# Inputs (pushed onto the stack in the order shown — note that MASM
-# operations consume from the top of the stack, so the first input is
-# `deposit_value_x1e8`):
+# Demo inputs:
+#   deposit_value_x1e8 = 10_000_000_000   ($100.00 in 8-decimal scale)
+#   nav_x1e8           =     20_000_00000 ($2.00 per share, 8-decimal)
+#   fee_factor         =          9970    (10000 - 30 bps mint fee)
 #
-#   [deposit_value_x1e8, nav_x1e8, fee_factor]
-#
-#   deposit_value_x1e8 — USD value of the deposit assets, fixed-point
-#                        with 8 decimals (e.g. $100.00 → 10000_00000000).
-#   nav_x1e8           — current basket NAV per share, 8-decimal scale.
-#   fee_factor         — pre-computed (10000 - fee_bps), unit-scaled to
-#                        match the nav scale. The SDK constructs this
-#                        from BasketManifest::fees::mint_fee_bps.
-#
-# Output stack: [mint_amount]
-#
-# This source is also used by the integration test
-# `atomic_deposit_note_assembles_with_darwin_math` in
-# `darwin-protocol-account/tests/atomic_deposit_note.rs`, which
-# wraps the assembled Program as a `miden_protocol::note::NoteScript`
-# — the type `miden-client::Client::new_transaction` consumes.
+# Math:
+#   mint_amount = deposit_value * fee_factor / nav
+#              = 10_000_000_000 * 9970 / 200_000_000_000
+#              = 9970 / 20
+#              = 498
+# (8-decimal mint result; ≈ 498 basket-token base units per $100.)
 
 use darwin::math
 
 begin
-    # Stack on entry:   [deposit_value, nav, fee_factor]
-    # After `mul`:      [deposit_value * fee_factor, nav]
-    # After felt_div:   [mint_amount]
-    mul
-    exec.math::felt_div
+    push.200000000000    # nav_x1e8 = $2.00 * 1e8 * 1000 (3 zeros for u64 scale)
+    push.9970            # fee_factor (10000 - 30 bps)
+    push.10000000000     # deposit_value_x1e8
+
+    # After 3 pushes: stack = [deposit_value, fee_factor, nav, 0, ...]
+    mul                  # [deposit_value * fee_factor, nav, ...]
+    exec.math::felt_div  # [mint_amount, ...]
+
+    # Note scripts must return with the stack at exactly the initial
+    # depth (16). We pushed 3 elements; mul + felt_div together
+    # consumed 4 and pushed 2, net +1. Drop the one extra felt.
+    drop
 end
