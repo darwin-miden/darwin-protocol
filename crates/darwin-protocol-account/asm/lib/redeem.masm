@@ -1,0 +1,73 @@
+# Basket-token redeem math.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §6.5.
+#
+# Two procedures compose the Miden side of Flow C:
+#
+#   * redeem_value_usd   takes (burn_amount, current_nav, supply) and
+#                        returns the gross USD value of the redemption.
+#                        The caller then runs deduct_bps_fee from
+#                        fees.masm to split this into (net, fee).
+#   * release_amount     takes (net_value_usd, weight_bps, price) and
+#                        returns the per-constituent amount of underlying
+#                        asset to release. The DepositNote-style note
+#                        script unrolls this once per constituent.
+#
+# The standard mint formula `mint_amount = deposit_value * supply / nav`
+# in mint.masm is the algebraic inverse of `redeem_value = burn_amount
+# * nav / supply` here. Same u32div constraint, same units (USD * 1e8
+# for value/NAV/price, 8 decimals for the basket token and most
+# constituents).
+
+const FEE_BPS_DENOMINATOR = 10000
+
+#! Stack on entry:   [burn_amount, current_nav, supply]
+#!   where burn_amount = basket-token amount being burned (base units)
+#!         current_nav = USD * 1e8 per share, as written to slot 4 of
+#!                       the protocol account by `compute_nav`
+#!         supply      = current basket-token supply (before burning)
+#!
+#! Stack on exit:    [redeem_value_usd]
+#!   where redeem_value_usd = burn_amount * current_nav / supply
+#!                            (gross of redeem fee — apply
+#!                            fees::deduct_bps_fee separately)
+pub proc redeem_value_usd
+    # Stack: [burn_amount, current_nav, supply]
+    mul                         # [burn_amount * current_nav, supply]
+    # u32div pops divisor first; need supply on top.
+    swap                        # [supply, num]
+    u32div                      # [num / supply]
+end
+
+#! Stack on entry:   [net_value_usd, weight_bps, price]
+#!   where net_value_usd = the post-redeem-fee USD value of the
+#!                         redemption
+#!         weight_bps    = target weight of this constituent in basis
+#!                         points (matches the manifest)
+#!         price         = current Pragma price for this constituent
+#!                         (USD * 1e8)
+#!
+#! Stack on exit:    [release_amount]
+#!   where release_amount = (net_value_usd * weight_bps)
+#!                          / (10000 * price)
+#!
+#! Two u32-fitness gotchas:
+#!   - `net_value_usd * weight_bps` must fit in u32. For the M1 baskets
+#!     all weights are at most 5000 bps, so net_value_usd must fit
+#!     comfortably in u32 / 5000.
+#!   - `10000 * price` must fit in u32. Pragma e8 prices for the M1
+#!     pairs are around 1e3..1e8 — fine.
+pub proc release_amount
+    # Stack: [net_value_usd, weight_bps, price]
+
+    # numerator = net_value_usd * weight_bps
+    mul                         # [net_value_usd * weight_bps, price]
+
+    # divisor = FEE_BPS_DENOMINATOR * price
+    push.FEE_BPS_DENOMINATOR    # [10000, num, price]
+    movup.2                     # [price, 10000, num]
+    mul                         # [10000 * price, num]
+
+    # u32div: divisor on top, dividend below.
+    u32div                      # [release_amount]
+end
