@@ -1,0 +1,65 @@
+# Portfolio drift detection — M2 rebalancing math.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §13.1 (M2 rebalancing
+# engine). The procedures here are written and tested in M1 so that
+# when M2 starts they can be wired into a `Flow B` note script
+# without re-deriving the math.
+#
+# Definitions
+# -----------
+#
+#   current_weight_bps  =  position * price * 10000 / total_pool_value
+#   drift_bps           =  |current_weight_bps - target_weight_bps|
+#   rebalance_required  =  drift_bps > drift_threshold_bps  (per manifest)
+#
+# All operations use `darwin::math::felt_div` so any combination of
+# realistic u64 operands works.
+
+use darwin::math
+
+const TOTAL_WEIGHT_BPS = 10000
+
+#! constituent_weight_bps computes the current weight of one
+#! constituent inside its basket, in basis points (0..10000).
+#!
+#! Stack on entry:   [position, price, total_pool_value]
+#! Stack on exit:    [current_weight_bps]
+#!
+#! current_weight = position * price * 10000 / total_pool_value
+pub proc constituent_weight_bps
+    mul                          # [position*price, total_pool_value]
+    push.TOTAL_WEIGHT_BPS        # [10000, position*price, total_pool_value]
+    mul                          # [position*price*10000, total_pool_value]
+    exec.math::felt_div          # [current_weight_bps]
+end
+
+#! abs_drift_bps returns the absolute deviation in basis points
+#! between an observed weight and its target.
+#!
+#! Stack on entry:   [current_bps, target_bps]
+#! Stack on exit:    [drift_bps]   where drift_bps = |current - target|
+pub proc abs_drift_bps
+    # Compute |current - target| via the standard
+    # branch-free idiom: if current >= target, return current - target;
+    # else return target - current.
+    dup.1                        # [target, current, target]   (dup.1 duplicates the second elem)
+    dup.1                        # [current, target, current, target]
+    lt                           # [(current < target), current, target]
+    if.true
+        swap sub                 # [target - current]
+    else
+        sub                      # [current - target]
+    end
+end
+
+#! needs_rebalance returns 1 if the absolute drift exceeds the
+#! threshold, 0 otherwise. The M2 rebalance engine calls this once
+#! per constituent and triggers an in-protocol DEX swap if any
+#! constituent returns 1.
+#!
+#! Stack on entry:   [drift_bps, threshold_bps]
+#! Stack on exit:    [needs_rebalance]   (0 or 1)
+pub proc needs_rebalance
+    # drift > threshold  <=>  threshold < drift  <=>  lt
+    lt
+end

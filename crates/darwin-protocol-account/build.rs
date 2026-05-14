@@ -23,6 +23,7 @@ const PRIMITIVES: &[(&str, &str)] = &[
     ("darwin::mint", "asm/lib/mint.masm"),
     ("darwin::fees", "asm/lib/fees.masm"),
     ("darwin::redeem", "asm/lib/redeem.masm"),
+    ("darwin::drift", "asm/lib/drift.masm"),
 ];
 
 const FLOW_NAMESPACE: &str = "darwin::flow";
