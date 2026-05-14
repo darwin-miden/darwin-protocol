@@ -8,8 +8,10 @@
 # storage slot 7 by the calling note script directly — no helper proc
 # needed.
 #
-# Limitations: same u32 caveat as nav.masm and mint.masm — the final
-# division uses u32div, so callers must keep operands within u32.
+# All divisions go through `darwin::math::felt_div`, so operands and
+# results may take any u64 value.
+
+use darwin::math
 
 const FEE_BPS_DENOMINATOR = 10000
 
@@ -48,8 +50,9 @@ pub proc accrue_management
     movup.2                     # [blocks_per_year, 10000, numerator]
     mul                         # [divisor, numerator]
 
-    # delta_fee = numerator / divisor   (u32div pops divisor first)
-    u32div                      # [delta_fee]
+    # delta_fee = numerator / divisor
+    swap                        # [numerator, divisor]
+    exec.math::felt_div         # [delta_fee]
 end
 
 #! deduct_bps_fee subtracts a basis-point fee from a value and returns
@@ -77,7 +80,8 @@ pub proc deduct_bps_fee
     sub                          # [10000 - fee_bps, value, value_orig]
     mul                          # [value * (10000 - fee_bps), value_orig]
     push.FEE_BPS_DENOMINATOR     # [10000, num, value_orig]
-    u32div                       # [net_value, value_orig]
+    swap                         # [num, 10000, value_orig]
+    exec.math::felt_div          # [net_value, value_orig]
 
     # Compute fee_amount = value_orig - net_value and reorder.
     swap                         # [value_orig, net_value]

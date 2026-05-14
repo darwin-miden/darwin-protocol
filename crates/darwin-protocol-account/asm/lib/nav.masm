@@ -13,6 +13,8 @@
 # realistic TVL with USD-8-decimals prices and the constituents'
 # native decimals.
 
+use darwin::math
+
 #! Stack on entry:   [p1, q1, p2, q2]
 #! Stack on exit:    [s]   where s = p1*q1 + p2*q2
 pub proc weighted_sum_2
@@ -55,13 +57,8 @@ end
 #!
 #! Stack on exit:    [nav_per_share]   where nav_per_share = sum / supply
 #!
-#! Integer division via the u32 primitive. Both operands must fit in
-#! u32 for this to be correct; the test suite enforces this. A
-#! production-grade nav_per_share that handles operands up to 2^64 is
-#! a M1 follow-up — likely by long-dividing via miden-stdlib's
-#! `std::math::u64` helpers, or by storing NAV/supply at a fixed scale
-#! that keeps the ratio below 2^32.
+#! Uses `darwin::math::felt_div`, which delegates to the std-lib u64
+#! divider, so both operands and the quotient may be any u64 values.
 pub proc nav_per_share
-    swap        # [supply, sum]   — Miden's u32div consumes divisor first
-    u32div      # [sum / supply]
+    exec.math::felt_div
 end

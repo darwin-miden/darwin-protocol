@@ -30,9 +30,11 @@
 #      or
 #   3. Implement schoolbook long division over four u32 limbs of a u128.
 #
-# Until then, the tests below use operand sizes that fit in u32 to
-# validate the math semantics. The compute_nav side of the spec already
-# accepts this trade-off (see nav.masm).
+# Both procedures use `darwin::math::felt_div` (u64-safe long
+# division) for their final integer division, so realistic on-chain
+# operand sizes work directly. See `asm/lib/math.masm`.
+
+use darwin::math
 
 const FEE_BPS_DENOMINATOR = 10000
 
@@ -64,8 +66,10 @@ pub proc par_value
     mul
     # Stack: [deposit_value * (10000 - fee_bps)]
     push.FEE_BPS_DENOMINATOR
-    # Stack: [10000, ...] — u32div consumes divisor first
-    u32div
+    # Stack: [10000, num]
+    swap
+    # Stack: [num, 10000]  — felt_div expects [num, div] with num on top
+    exec.math::felt_div
     # Stack: [mint_amount]
 end
 
@@ -107,7 +111,9 @@ pub proc standard
     mul
     # [divisor, numerator]    where divisor = 10000 * pre_nav
 
-    # Step 3: mint_amount = numerator / divisor. u32div pops divisor first.
-    u32div
+    # Step 3: mint_amount = numerator / divisor. felt_div wants num on top.
+    swap
+    # [numerator, divisor]
+    exec.math::felt_div
     # [mint_amount]
 end

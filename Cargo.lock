@@ -442,6 +442,7 @@ dependencies = [
  "darwin-baskets",
  "miden-assembly 0.23.0",
  "miden-base",
+ "miden-core-lib",
  "miden-objects",
  "miden-vm",
  "serde",

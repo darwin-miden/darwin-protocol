@@ -15,9 +15,10 @@
 #
 # The standard mint formula `mint_amount = deposit_value * supply / nav`
 # in mint.masm is the algebraic inverse of `redeem_value = burn_amount
-# * nav / supply` here. Same u32div constraint, same units (USD * 1e8
-# for value/NAV/price, 8 decimals for the basket token and most
-# constituents).
+# * nav / supply` here. All divisions go through `darwin::math::felt_div`,
+# so operands take any u64 value.
+
+use darwin::math
 
 const FEE_BPS_DENOMINATOR = 10000
 
@@ -35,8 +36,8 @@ pub proc redeem_value_usd
     # Stack: [burn_amount, current_nav, supply]
     mul                         # [burn_amount * current_nav, supply]
     # u32div pops divisor first; need supply on top.
-    swap                        # [supply, num]
-    u32div                      # [num / supply]
+    # felt_div wants [num, div] with num on top.
+    exec.math::felt_div         # [num / supply]
 end
 
 #! Stack on entry:   [net_value_usd, weight_bps, price]
@@ -68,6 +69,7 @@ pub proc release_amount
     movup.2                     # [price, 10000, num]
     mul                         # [10000 * price, num]
 
-    # u32div: divisor on top, dividend below.
-    u32div                      # [release_amount]
+    # felt_div wants num on top, divisor below.
+    swap                        # [num, divisor]
+    exec.math::felt_div         # [release_amount]
 end

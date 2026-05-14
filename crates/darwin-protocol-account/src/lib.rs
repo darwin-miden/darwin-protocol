@@ -34,6 +34,40 @@ pub use darwin_baskets::{BasketManifest, Constituent};
 /// stays hermetic with the Rust crate.
 pub const CONTROLLER_MASM: &str = include_str!("../asm/controller.masm");
 
+/// MASM source for `darwin::math`. Convenient for integration tests
+/// that need to re-parse the module rather than load the assembled
+/// library.
+pub const MATH_MASM: &str = include_str!("../asm/lib/math.masm");
+
+/// Pre-assembled MASM artefacts produced by `build.rs`.
+///
+/// `PRIMITIVES_MASL` bundles the four math libraries (`darwin::nav`,
+/// `darwin::mint`, `darwin::fees`, `darwin::redeem`) into one MAST.
+/// `FLOW_MASL` is the higher-level composition library (`darwin::flow`)
+/// that depends on the primitives.
+///
+/// Consumers load these with `miden_assembly::Library::read_from_bytes`
+/// and attach them to an `Assembler` via `with_static_library` before
+/// assembling note scripts or account components that reference the
+/// `darwin::*` procedures.
+pub const PRIMITIVES_MASL: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/darwin-primitives.masl"));
+pub const FLOW_MASL: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/darwin-flow.masl"));
+
+/// Loads the bundled `darwin::nav`/`mint`/`fees`/`redeem` library.
+pub fn primitives_library() -> miden_assembly::Library {
+    use miden_assembly::serde::Deserializable;
+    miden_assembly::Library::read_from_bytes(PRIMITIVES_MASL)
+        .expect("bundled darwin primitives library deserialises")
+}
+
+/// Loads the bundled `darwin::flow` library.
+pub fn flow_library() -> miden_assembly::Library {
+    use miden_assembly::serde::Deserializable;
+    miden_assembly::Library::read_from_bytes(FLOW_MASL)
+        .expect("bundled darwin flow library deserialises")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,9 +109,19 @@ mod tests {
     #[test]
     fn miden_assembler_is_wireable() {
         // Sanity check that miden-assembly is a working dependency.
-        // Once the MASM in `asm/controller.masm` has bodies that parse
-        // cleanly, this can be replaced with an actual `assemble_library`
-        // call against the controller source.
         let _assembler = miden_assembly::Assembler::default();
+    }
+
+    #[test]
+    fn bundled_primitives_library_loads() {
+        let lib = primitives_library();
+        // The deserialised library exposes at least one MAST root.
+        assert!(lib.module_infos().count() > 0);
+    }
+
+    #[test]
+    fn bundled_flow_library_loads() {
+        let lib = flow_library();
+        assert!(lib.module_infos().count() > 0);
     }
 }
