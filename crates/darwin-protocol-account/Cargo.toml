@@ -8,14 +8,19 @@ description = "Darwin Protocol Account: shared private account per basket, Regul
 
 [dependencies]
 darwin-baskets    = { workspace = true }
+darwin-notes      = { path = "../darwin-notes" }
 miden-assembly    = { workspace = true }
 miden-core-lib    = { workspace = true }
 miden-base        = { workspace = true }
+miden-client      = { workspace = true, features = ["tonic"] }
+miden-client-sqlite-store = "0.14"
 miden-objects     = { workspace = true }
 miden-mast-package = "0.22"
 miden-protocol    = { workspace = true }
+rand              = "0.8"
 serde = { workspace = true }
 thiserror = { workspace = true }
+tokio             = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 
 [build-dependencies]
 miden-assembly = { workspace = true }
