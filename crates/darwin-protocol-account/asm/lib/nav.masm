@@ -1,0 +1,67 @@
+# Weighted-sum primitive used by compute_nav.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §6.2.
+#
+# `weighted_sum_N` computes the dot product of two N-element vectors,
+# which is the building block of a basket NAV when the basket has up to
+# N constituents. The three M1 baskets use N = 2 (Aggressive), N = 3
+# (Core Crypto), and N = 4 (Conservative).
+#
+# All arithmetic is in Goldilocks felt space. Callers are responsible
+# for ensuring that the products and the sum stay below the felt
+# modulus (~1.84e19), which §6.2 of the spec demonstrates holds for any
+# realistic TVL with USD-8-decimals prices and the constituents'
+# native decimals.
+
+#! Stack on entry:   [p1, q1, p2, q2]
+#! Stack on exit:    [s]   where s = p1*q1 + p2*q2
+pub proc weighted_sum_2
+    mul        # [p1*q1, p2, q2]
+    movdn.2    # [p2, q2, p1*q1]
+    mul        # [p2*q2, p1*q1]
+    add        # [p2*q2 + p1*q1]
+end
+
+#! Stack on entry:   [p1, q1, p2, q2, p3, q3]
+#! Stack on exit:    [s]   where s = p1*q1 + p2*q2 + p3*q3
+pub proc weighted_sum_3
+    mul        # [p1*q1, p2, q2, p3, q3]
+    movdn.4    # [p2, q2, p3, q3, p1*q1]
+    mul        # [p2*q2, p3, q3, p1*q1]
+    movdn.3    # [p3, q3, p1*q1, p2*q2]
+    mul        # [p3*q3, p1*q1, p2*q2]
+    add        # [p3*q3 + p1*q1, p2*q2]
+    add        # [p3*q3 + p1*q1 + p2*q2]
+end
+
+#! Stack on entry:   [p1, q1, p2, q2, p3, q3, p4, q4]
+#! Stack on exit:    [s]   where s = p1*q1 + p2*q2 + p3*q3 + p4*q4
+pub proc weighted_sum_4
+    mul        # [p1*q1, p2, q2, p3, q3, p4, q4]
+    movdn.6    # [p2, q2, p3, q3, p4, q4, p1*q1]
+    mul        # [p2*q2, p3, q3, p4, q4, p1*q1]
+    movdn.5    # [p3, q3, p4, q4, p1*q1, p2*q2]
+    mul        # [p3*q3, p4, q4, p1*q1, p2*q2]
+    movdn.4    # [p4, q4, p1*q1, p2*q2, p3*q3]
+    mul        # [p4*q4, p1*q1, p2*q2, p3*q3]
+    add        # [p4*q4 + p1*q1, p2*q2, p3*q3]
+    add        # [..., p3*q3]
+    add        # [sum of four products]
+end
+
+#! Stack on entry:   [sum, supply]
+#!   where sum    = Σ pᵢ * qᵢ   (units: USD * 1e8 * native-decimals)
+#!   and   supply = basket-token supply (8 decimals)
+#!
+#! Stack on exit:    [nav_per_share]   where nav_per_share = sum / supply
+#!
+#! Integer division via the u32 primitive. Both operands must fit in
+#! u32 for this to be correct; the test suite enforces this. A
+#! production-grade nav_per_share that handles operands up to 2^64 is
+#! a M1 follow-up — likely by long-dividing via miden-stdlib's
+#! `std::math::u64` helpers, or by storing NAV/supply at a fixed scale
+#! that keeps the ratio below 2^32.
+pub proc nav_per_share
+    swap        # [supply, sum]   — Miden's u32div consumes divisor first
+    u32div      # [sum / supply]
+end

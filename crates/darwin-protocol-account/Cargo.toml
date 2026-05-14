@@ -13,3 +13,6 @@ miden-base     = { workspace = true }
 miden-objects  = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+miden-vm = { workspace = true }
