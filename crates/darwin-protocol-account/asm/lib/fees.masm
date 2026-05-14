@@ -1,0 +1,87 @@
+# Fee accrual primitives for the Darwin Protocol Account.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §6.4.
+#
+# Today the only fee that needs in-circuit accrual is the management
+# fee, which is streamed linearly per block. Mint and redeem fees are
+# discrete (one-shot per transaction) and accumulated in the protocol's
+# storage slot 7 by the calling note script directly — no helper proc
+# needed.
+#
+# Limitations: same u32 caveat as nav.masm and mint.masm — the final
+# division uses u32div, so callers must keep operands within u32.
+
+const FEE_BPS_DENOMINATOR = 10000
+
+#! accrue_management computes how much management fee to add to the
+#! fee accrual slot since the last interaction.
+#!
+#! Stack on entry:   [blocks_elapsed, basket_value, fee_bps_year, blocks_per_year]
+#!   where blocks_elapsed = current_block - last_accrual_block
+#!         basket_value   = total pool value in USD * 1e8
+#!         fee_bps_year   = annual management fee in basis points (e.g. 100 == 1%)
+#!         blocks_per_year = number of Miden blocks in one year, baked
+#!                           into the protocol manifest at deployment
+#!                           (so the test can use any unit-of-time
+#!                           equivalent — 365 days * 86400 / block_time).
+#!
+#! Stack on exit:    [delta_fee]
+#!   where delta_fee = blocks_elapsed * basket_value * fee_bps_year
+#!                     / (10000 * blocks_per_year)
+#!
+#! Edge cases handled by the formula naturally:
+#!   - blocks_elapsed == 0  =>  delta_fee == 0
+#!   - basket_value   == 0  =>  delta_fee == 0
+#!   - fee_bps_year   == 0  =>  delta_fee == 0
+#!   - blocks_elapsed >  blocks_per_year   =>  delta_fee scales linearly
+#!     (no clamping; if the account hasn't been touched for years the
+#!     accrual catches up in one shot)
+pub proc accrue_management
+    # Stack: [blocks_elapsed, basket_value, fee_bps_year, blocks_per_year]
+
+    # numerator = blocks_elapsed * basket_value * fee_bps_year
+    mul                         # [blocks_elapsed * basket_value, fee_bps_year, blocks_per_year]
+    mul                         # [numerator, blocks_per_year]
+
+    # divisor = 10000 * blocks_per_year
+    push.FEE_BPS_DENOMINATOR    # [10000, numerator, blocks_per_year]
+    movup.2                     # [blocks_per_year, 10000, numerator]
+    mul                         # [divisor, numerator]
+
+    # delta_fee = numerator / divisor   (u32div pops divisor first)
+    u32div                      # [delta_fee]
+end
+
+#! deduct_bps_fee subtracts a basis-point fee from a value and returns
+#! both the net value and the fee amount. Used by deposit/redeem notes
+#! to split a deposit_value or redeem_value into "what the user gets"
+#! and "what accrues to the fee slot".
+#!
+#! Stack on entry:   [value, fee_bps]
+#! Stack on exit:    [net_value, fee_amount]
+#!   where net_value = value * (10000 - fee_bps) / 10000
+#!         fee_amount = value - net_value
+#!
+#! Both operands must fit in u32 (`value * 10000` is the bound).
+pub proc deduct_bps_fee
+    # Stack on entry:  [value, fee_bps]
+    # Stack on exit:   [net_value, fee_amount]
+
+    # Save a copy of value at the bottom for the fee computation later.
+    dup                          # [value, value, fee_bps]
+    movdn.2                      # [value, fee_bps, value_orig]
+
+    # Compute net_value = value * (10000 - fee_bps) / 10000.
+    push.FEE_BPS_DENOMINATOR     # [10000, value, fee_bps, value_orig]
+    movup.2                      # [fee_bps, 10000, value, value_orig]
+    sub                          # [10000 - fee_bps, value, value_orig]
+    mul                          # [value * (10000 - fee_bps), value_orig]
+    push.FEE_BPS_DENOMINATOR     # [10000, num, value_orig]
+    u32div                       # [net_value, value_orig]
+
+    # Compute fee_amount = value_orig - net_value and reorder.
+    swap                         # [value_orig, net_value]
+    dup.1                        # [net_value, value_orig, net_value]
+    sub                          # [fee_amount, net_value]    (value_orig - net_value)
+    swap                         # [net_value, fee_amount]
+end
