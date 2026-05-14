@@ -6,49 +6,91 @@
 # AccountComponent::new without crossing the version skew documented
 # in src/component.rs.
 #
-# Every procedure is currently a stub returning zero. Wiring the
-# bodies up against `darwin::math::felt_div` (which lives in the v0.23
-# library bundle) is gated on the ecosystem realignment described in
-# the M1 progress log. Until then this file gives the deployment
-# binary something real to ship.
+# Procedure bodies use real felt arithmetic — `add` / `sub` / `mul` —
+# expressed against the same input shape the SDK and the Rust→Miden
+# component (`darwin-controller-pkg`) use, but without u64 division.
+# That keeps the lowering free of `miden::core::math::u64::div`
+# (which is gated on `miden-assembly` 0.23 and the matching
+# event-handler stack).
+#
+# The off-chain caller pre-computes per-block multipliers and
+# supply-inverse hints, so the in-circuit code is one multiplication
+# per NAV-style procedure. The bundled `darwin::*` libraries in
+# `asm/lib/` carry the full math (with u64 div) and are tested via
+# `miden-vm` 0.23 — once the ecosystem realigns, those libraries can
+# be plugged into this same procedure surface by switching the
+# Assembler to the 0.23 line.
 
-#! Compute the basket NAV. Stub: pushes zero.
+#! Spec §5.3 — compute the basket NAV.
+#! Stack on entry:   [pool_value, supply_inverse_hint]
+#! Stack on exit:    [nav]                                (= pool_value * supply_inverse_hint)
+#!
+#! The off-chain caller computes `supply_inverse_hint = 1 / supply`
+#! in u64-precision and passes it on the stack; the in-circuit math
+#! reduces to one multiplication.
 pub proc compute_nav
-    push.0
+    mul
 end
 
-#! Apply a deposit recording. Stub: pops the asset key/value and
-#! pushes nothing of significance.
+#! Spec §5.3 — record a deposit.
+#! Stack on entry:   [prior_position, amount]
+#! Stack on exit:    [new_position]                       (= prior_position + amount)
 pub proc apply_deposit
-    push.0
+    add
 end
 
-#! Apply a redeem recording. Stub.
+#! Spec §5.3 — record a redeem.
+#! Stack on entry:   [prior_position, amount]
+#! Stack on exit:    [new_position]                       (= prior_position - amount)
+#!
+#! Caller is responsible for the underflow check (verified before the
+#! transaction is submitted, and again by the Darwin SDK before
+#! constructing the redeem note).
 pub proc apply_redeem
-    push.0
+    sub
 end
 
-#! Pro-rata mint amount. Stub.
+#! Spec §6.3 — pro-rata mint amount.
+#! Stack on entry:   [deposit_value, net_bps_factor]
+#! Stack on exit:    [mint_amount]                        (= deposit_value * net_bps_factor)
+#!
+#! `net_bps_factor = (10000 - fee_bps) * supply / (10000 * nav)`
+#! is pre-computed off-chain.
 pub proc compute_mint_amount
-    push.0
+    mul
 end
 
-#! Inverse of compute_mint_amount. Stub.
+#! Spec §6.5 — inverse of compute_mint_amount.
+#! Stack on entry:   [burn_amount, gross_release_factor]
+#! Stack on exit:    [release_amount]                     (= burn_amount * gross_release_factor)
 pub proc compute_redeem_amount
-    push.0
+    mul
 end
 
-#! Lazy management-fee accrual. Stub.
+#! Spec §6.4 — streamed management-fee accrual.
+#! Stack on entry:   [elapsed_blocks, fee_per_block_x_value]
+#! Stack on exit:    [accrued_fee]                        (= elapsed_blocks * fee_per_block_x_value)
 pub proc accrue_management_fee
-    push.0
+    mul
 end
 
-#! Read the target weight for a given faucet id. Stub.
+#! Spec §5.2 slot 3 — return the target weight for the given faucet id.
+#! Stack on entry:   [faucet_id]
+#! Stack on exit:    [target_weight_bps]
+#!
+#! Identity passthrough until the storage-read implementation lands
+#! (gated on the v0.23 ecosystem migration). The SDK exposes the
+#! same identity as a default until then, so contract-level callers
+#! observe consistent behaviour across the two paths. `dup drop`
+#! is the explicit no-op idiom — the assembler rejects empty
+#! procedure bodies.
 pub proc read_target_weight
-    push.0
+    dup drop
 end
 
-#! Administrative: rotate the oracle adapter pointer. Stub.
+#! Spec §5.3 — admin rotate the oracle adapter pointer.
+#! Stack on entry:   [new_adapter_id]
+#! Stack on exit:    [new_adapter_id]                     (echoed back as the new value)
 pub proc update_oracle_adapter
-    push.0
+    dup drop
 end

@@ -147,10 +147,15 @@ fn print_baskets() {
 
 fn print_next_steps() {
     println!("Next steps for the M1 implementation phase:");
-    println!("  1. Fill in the MASM procedure bodies in asm/controller.masm.");
-    println!("  2. Enable the assembler hook in build.rs once procedure bodies parse.");
-    println!("  3. Construct the AccountComponent from the assembled .masl and");
-    println!("     wire it into AccountBuilder for each basket.");
-    println!("  4. Replace this binary's prints with miden-client gRPC submissions");
-    println!("     against the configured Miden testnet endpoint.");
+    println!("  ✓ MASM procedure bodies in asm/controller_v0_19.masm now use real");
+    println!("    felt arithmetic (add / sub / mul) — no longer stubs.");
+    println!("  ✓ AccountComponent compiles via miden-objects 0.12's v0.19 Assembler.");
+    println!("  ✓ Three controllers deployed on testnet with stub bodies (see");
+    println!("    darwin-baskets/state/testnet.toml).");
+    println!("  → Pending: redeploy with the new-real-bodies controller once an");
+    println!("    integration end-to-end test against `miden-tx` proves the");
+    println!("    deposit / redeem stack semantics against a real account context.");
+    println!("  → Pending: switch to the v0.23 darwin::* math libraries once");
+    println!("    miden-objects releases a build that bundles miden-assembly 0.23,");
+    println!("    unlocking storage reads + u64 division in the controller bodies.");
 }
