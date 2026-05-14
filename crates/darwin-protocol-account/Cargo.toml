@@ -1,0 +1,12 @@
+[package]
+name = "darwin-protocol-account"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Darwin Protocol Account: shared private account per basket, RegularAccountImmutableCode with Private storage."
+
+[dependencies]
+darwin-baskets = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

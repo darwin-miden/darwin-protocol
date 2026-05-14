@@ -1,0 +1,41 @@
+# RedeemNote — consumed by the Darwin Protocol Account.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §6.5 + §7.2.
+# Inputs: [burn_amount, RECIPIENT_ADDRESS, EXPIRY_BLOCK, BASKET_ID]
+# Asset payload: (basket_token_faucet_id, burn_amount)
+# Effect: releases a pro-rata bundle of underlyings to RECIPIENT_ADDRESS
+# and burns burn_amount of the basket token.
+
+use.darwin::basket_controller
+use.darwin::oracle_adapter
+use.darwin::basket_faucet
+use.miden::note
+use.miden::account
+
+begin
+    # 1. Authenticate caller + verify BASKET_ID matches this account.
+    exec.note::get_target_account
+    exec.basket_controller::assert_caller
+    exec.note::get_inputs
+    exec.basket_controller::assert_basket_id
+
+    # 2. Expiry check.
+    exec.note::get_block_number
+    lt assert
+
+    # 3. Compute current NAV.
+    exec.basket_controller::compute_nav
+    exec.oracle_adapter::read_prices_for_basket
+    exec.basket_controller::compute_redeem_value_usd
+    exec.basket_controller::deduct_redeem_fee
+
+    # 4. Iterate constituents: compute release_i, emit P2ID notes,
+    #    decrement pool positions.
+    # TODO: per-constituent loop generated from manifest.
+
+    # 5. Burn the basket-token amount.
+    exec.basket_faucet::burn
+
+    # 6. Accrue management fee.
+    exec.basket_controller::accrue_management_fee
+end

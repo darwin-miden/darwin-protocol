@@ -1,0 +1,12 @@
+[package]
+name = "darwin-notes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Note scripts consumed by the Darwin Protocol Account: DepositNote and RedeemNote."
+
+[dependencies]
+darwin-baskets = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

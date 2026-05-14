@@ -1,0 +1,12 @@
+[package]
+name = "darwin-basket-faucet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Darwin basket-token FungibleFaucet with the agglayer_faucet interface for bridge-out."
+
+[dependencies]
+darwin-baskets = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }

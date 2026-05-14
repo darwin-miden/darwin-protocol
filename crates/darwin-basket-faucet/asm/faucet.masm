@@ -1,0 +1,59 @@
+# Darwin basket-token FungibleFaucet — MASM source.
+#
+# Spec: see darwin-docs/m1-architecture-spec.md §6.6.
+#
+# Components:
+#   - NetworkFungibleFaucet  (standard mintable/burnable fungible faucet)
+#   - Ownable2Step           (owner = Darwin Protocol Account)
+#   - OwnerControlled policy (mint/burn authorisation)
+#   - agglayer_faucet        (asset_to_origin_asset, get_metadata_hash,
+#                             get_scale — required by AggLayer bridge-out)
+
+use.miden::standards::faucets::network_fungible
+use.miden::standards::access::ownable_two_step
+use.miden::agglayer::faucet as agglayer_faucet
+
+# -----------------------------------------------------------------------------
+# Storage (additional to the NetworkFungibleFaucet base slots).
+# -----------------------------------------------------------------------------
+
+const CONVERSION_INFO_1_SLOT   = 4  # [addr_0, addr_1, addr_2, addr_3]
+const CONVERSION_INFO_2_SLOT   = 5  # [addr_4, origin_network, scale, 0]
+const METADATA_HASH_LO_SLOT    = 6
+const METADATA_HASH_HI_SLOT    = 7
+
+# -----------------------------------------------------------------------------
+# AggLayer faucet procedures (re-exported as required by §3.2 of
+# miden-agglayer/SPEC.md).
+# -----------------------------------------------------------------------------
+
+#! Re-export of agglayer_faucet::asset_to_origin_asset. Called by the
+#! AggLayer bridge during bridge_out::bridge_out.
+export.asset_to_origin_asset
+    # TODO: read CONVERSION_INFO_*, scale amount, return (U256, addr, network)
+    push.0
+end
+
+export.get_metadata_hash
+    # TODO: read METADATA_HASH_LO/HI, return as 8 u32 felts
+    push.0
+end
+
+export.get_scale
+    # TODO: read CONVERSION_INFO_2_SLOT[2]
+    push.0
+end
+
+# -----------------------------------------------------------------------------
+# Mint / burn — authorised by the Darwin Protocol Account that owns this faucet.
+# -----------------------------------------------------------------------------
+
+export.mint_and_send
+    # TODO: delegate to network_fungible::mint_and_send with owner check
+    push.0
+end
+
+export.burn
+    # TODO: delegate to basic_fungible::burn
+    push.0
+end

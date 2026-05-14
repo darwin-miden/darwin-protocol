@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/darwin-protocol-account",
+    "crates/darwin-basket-faucet",
+    "crates/darwin-asset-faucets",
+    "crates/darwin-notes",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/darwin-miden/darwin-protocol"
+
+[workspace.dependencies]
+darwin-baskets = { git = "ssh://git@github.com/darwin-miden/darwin-baskets.git" }
+
+# Miden dependencies — pinned to v0.14-aligned commits.
+# Once midenup + miden-base + miden-client + miden-agglayer are available
+# in the local toolchain, uncomment the entries below and add them to the
+# per-crate Cargo.toml dependency sections.
+#
+# miden-base       = { git = "https://github.com/0xMiden/protocol", branch = "next" }
+# miden-client     = { git = "https://github.com/0xMiden/miden-client", branch = "main" }
+# miden-agglayer   = { git = "https://github.com/0xMiden/protocol", branch = "next" }
+# miden-assembly   = { git = "https://github.com/0xMiden/protocol", branch = "next" }
+# miden-objects    = { git = "https://github.com/0xMiden/protocol", branch = "next" }
+
+serde     = { version = "1", features = ["derive"] }
+thiserror = "1"
+anyhow    = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
