@@ -1,44 +1,75 @@
-# Atomic DepositNote — Flow A in one note.
+# Atomic DepositNote — Flow A in one note, kernel-aware version.
 #
 # Spec: darwin-docs/m1-architecture-spec.md §7.1.
 #
-# Consumed by the Darwin Protocol Account. Computes the user's mint
-# amount on-chain via darwin::math::felt_div, which executes real
-# u64 division through miden::core::math::u64::div (miden-core-lib
-# 0.22 event handler).
+# Consumed by a Darwin Protocol Account that exposes `receive_asset`
+# (mirror of `miden::standards::wallets::basic::receive_asset`). The
+# note does three things on-chain:
 #
-# This is the "demo" version of the note: it hard-codes the deposit
-# value, basket NAV, and fee factor as constants on the stack so the
-# math runs end-to-end without needing the off-chain SDK to push note
-# inputs through the advice provider. The kernel-aware version
-# (asm/deposit_note.masm) is the §7.1 production layout — wired in
-# once cross-component calls into the basket faucet are ready.
+#   1. Compute `mint_amount = deposit_value * fee_factor / nav` via
+#      `darwin::math::felt_div` (real u64 division through
+#      `miden::core::math::u64::div`). Demo inputs are hard-coded
+#      until the SDK wires note inputs through the advice provider.
 #
-# Demo inputs:
-#   deposit_value_x1e8 = 10_000_000_000   ($100.00 in 8-decimal scale)
-#   nav_x1e8           =     20_000_00000 ($2.00 per share, 8-decimal)
-#   fee_factor         =          9970    (10000 - 30 bps mint fee)
+#   2. Walk every asset in the note's vault using
+#      `miden::protocol::active_note::get_assets` and call into the
+#      consuming account's `receive_asset` procedure for each. This
+#      satisfies the kernel's asset-conservation invariant: assets
+#      leave the note and end up in the controller's vault.
 #
-# Math:
-#   mint_amount = deposit_value * fee_factor / nav
-#              = 10_000_000_000 * 9970 / 200_000_000_000
-#              = 9970 / 20
-#              = 498
-# (8-decimal mint result; ≈ 498 basket-token base units per $100.)
+#   3. Return at stack depth 16 (kernel requirement).
 
 use darwin::math
+use miden::protocol::active_note
+use miden::protocol::asset::ASSET_VALUE_MEMORY_OFFSET
+use miden::protocol::asset::ASSET_SIZE
+
+# MAST root of the v2 real-bodies controller's `receive_asset`. The
+# controller exposes this proc; the note `call.X`s into it once per
+# deposited asset. The hex must be inlined at the call site because
+# the assembler doesn't substitute constants into `call.X`.
+#
+# `call.0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb`
+
+# --------------------------------------------------------------------------------
+# `drain_assets_into_controller` — basic-wallet-style asset-loop, adapted to call
+# the controller's receive_asset MAST root rather than basic-wallet's own copy.
+# --------------------------------------------------------------------------------
+@locals(2048)
+proc drain_assets_into_controller
+    locaddr.0 exec.active_note::get_assets
+    mul.ASSET_SIZE dup.1 add
+    padw padw movup.9
+    dup dup.10 neq
+    while.true
+        dup movdn.9
+        add.ASSET_VALUE_MEMORY_OFFSET mem_loadw_le swapw
+        dup.8 mem_loadw_le
+        padw padw swapdw
+        call.0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb
+        dropw dropw
+        movup.8 add.ASSET_SIZE dup
+        dup.10 neq
+    end
+    drop dropw dropw drop
+end
+
+# --------------------------------------------------------------------------------
+# `compute_mint_amount` — same math as the controller's compute_mint_amount, but
+# run in the note's own context so the result is observable. Demo inputs match
+# the basic atomic deposit note: deposit_value=$100, fee_factor=9970 (30 bps),
+# nav=$2.00 in 8-decimal scale (uplifted to 1e11 to stay in u64 product range).
+# --------------------------------------------------------------------------------
+proc compute_demo_mint
+    push.200000000000
+    push.9970
+    push.10000000000
+    mul
+    exec.math::felt_div
+    drop
+end
 
 begin
-    push.200000000000    # nav_x1e8 = $2.00 * 1e8 * 1000 (3 zeros for u64 scale)
-    push.9970            # fee_factor (10000 - 30 bps)
-    push.10000000000     # deposit_value_x1e8
-
-    # After 3 pushes: stack = [deposit_value, fee_factor, nav, 0, ...]
-    mul                  # [deposit_value * fee_factor, nav, ...]
-    exec.math::felt_div  # [mint_amount, ...]
-
-    # Note scripts must return with the stack at exactly the initial
-    # depth (16). We pushed 3 elements; mul + felt_div together
-    # consumed 4 and pushed 2, net +1. Drop the one extra felt.
-    drop
+    exec.compute_demo_mint
+    exec.drain_assets_into_controller
 end

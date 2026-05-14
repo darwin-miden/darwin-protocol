@@ -51,6 +51,7 @@ const MATH_NAMESPACE: &str = "darwin::math";
 
 const CONTROLLER_SOURCE: &str = r#"
 use darwin::math
+use miden::protocol::native_account
 
 # Spec §5.3 — compute the basket NAV.
 # Stack on entry:   [pool_value_x1e8, supply]
@@ -93,6 +94,22 @@ end
 pub proc accrue_management_fee
     mul
 end
+
+# Spec §5.4 — accept an asset moved into this account's vault.
+# Mirrors `miden::standards::wallets::basic::receive_asset`, which is
+# the canonical pattern for a note script to deposit an asset into the
+# consumer's vault. Without this proc the note script can't move the
+# deposited assets into the controller and the kernel's
+# asset-conservation invariant fails.
+#
+# Stack on entry:   [ASSET_KEY, ASSET_VALUE, pad(8)]
+# Stack on exit:    [pad(16)]
+pub proc receive_asset
+    exec.native_account::add_asset
+    # => [ASSET_VALUE', pad(12)]
+    dropw
+    # => [pad(16)]
+end
 "#;
 
 fn parse_args() -> PathBuf {
@@ -134,7 +151,11 @@ fn main() {
         .assemble_library([math_module])
         .expect("darwin::math assembles");
 
-    // 3. Assemble darwin::controller against math.
+    // 3. Assemble darwin::controller against math + miden-protocol.
+    //    miden-protocol's TransactionKernel::assembler ships with
+    //    CoreLibrary + ProtocolLib (which provides
+    //    miden::protocol::native_account etc.) attached, so the
+    //    controller's `use miden::protocol::native_account` resolves.
     let controller_module = Module::parser(ModuleKind::Library)
         .parse_str(
             Path::new(CONTROLLER_NAMESPACE),
@@ -143,9 +164,7 @@ fn main() {
         )
         .expect("darwin::controller parses");
 
-    let controller_lib = Assembler::default()
-        .with_static_library(core_lib.as_ref())
-        .expect("core lib attaches")
+    let controller_lib = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())
         .expect("darwin::math attaches")
         .assemble_library([controller_module])

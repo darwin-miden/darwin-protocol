@@ -31,7 +31,10 @@ use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
 const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
-const REAL_BODIES_CONTROLLER_HEX: &str = "0x171f46fecf1bca8005ae068a8dfe77";
+// v2 real-bodies controller: exposes `receive_asset` so the atomic
+// note can drain its vault into the controller. v1 was at
+// 0x171f46fecf1bca8005ae068a8dfe77 (no receive_asset).
+const REAL_BODIES_CONTROLLER_HEX: &str = "0xa25aa0b00007688024b74b05a52aab";
 const DETH_FAUCET_HEX: &str = "0xa095d9b3831e96206ff70c2218a6a9";
 const DEPOSIT_AMOUNT: u64 = 100;
 
@@ -61,8 +64,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let math_lib = Assembler::default()
         .with_static_library(core_lib.as_ref())?
         .assemble_library([math_module])?;
-    let program = Assembler::default()
-        .with_static_library(core_lib.as_ref())?
+    // Use the TransactionKernel assembler so the note's
+    // `use miden::protocol::active_note` etc. resolve.
+    let program = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())?
         .assemble_program(darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM)?;
     let note_script = NoteScript::new(program);

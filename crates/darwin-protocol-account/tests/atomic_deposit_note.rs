@@ -45,6 +45,7 @@ fn atomic_deposit_note_assembles_with_darwin_math() {
         .expect("core lib attaches")
         .assemble_library([math_module])
         .expect("darwin::math assembles");
+    let _ = source_manager;
 
     // 2. Pull the atomic deposit note source from the canonical
     //    `darwin-notes` library — this is the same constant the SDK
@@ -52,9 +53,10 @@ fn atomic_deposit_note_assembles_with_darwin_math() {
     //    against the v0.22 toolchain attached to darwin::math.
     let note_source = darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM;
 
-    let program = Assembler::default()
-        .with_static_library(core_lib.as_ref())
-        .expect("core lib attaches")
+    // Use miden-protocol's transaction-kernel assembler so the note
+    // script can resolve `miden::protocol::active_note` and the
+    // `asset::ASSET_*` constants the asset-drain loop relies on.
+    let program = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())
         .expect("darwin::math attaches")
         .assemble_program(note_source)
