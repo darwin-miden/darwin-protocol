@@ -1,0 +1,54 @@
+# Darwin Basket Controller — v0.14-line component source.
+#
+# Self-contained MASM that compiles cleanly with the Assembler bundled
+# in miden-objects 0.12 (miden-assembly 0.19.1) and the
+# miden-standards 0.14 line, so the resulting Library can be passed to
+# AccountComponent::new without crossing the version skew documented
+# in src/component.rs.
+#
+# Every procedure is currently a stub returning zero. Wiring the
+# bodies up against `darwin::math::felt_div` (which lives in the v0.23
+# library bundle) is gated on the ecosystem realignment described in
+# the M1 progress log. Until then this file gives the deployment
+# binary something real to ship.
+
+#! Compute the basket NAV. Stub: pushes zero.
+pub proc compute_nav
+    push.0
+end
+
+#! Apply a deposit recording. Stub: pops the asset key/value and
+#! pushes nothing of significance.
+pub proc apply_deposit
+    push.0
+end
+
+#! Apply a redeem recording. Stub.
+pub proc apply_redeem
+    push.0
+end
+
+#! Pro-rata mint amount. Stub.
+pub proc compute_mint_amount
+    push.0
+end
+
+#! Inverse of compute_mint_amount. Stub.
+pub proc compute_redeem_amount
+    push.0
+end
+
+#! Lazy management-fee accrual. Stub.
+pub proc accrue_management_fee
+    push.0
+end
+
+#! Read the target weight for a given faucet id. Stub.
+pub proc read_target_weight
+    push.0
+end
+
+#! Administrative: rotate the oracle adapter pointer. Stub.
+pub proc update_oracle_adapter
+    push.0
+end

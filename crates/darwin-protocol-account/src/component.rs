@@ -1,31 +1,38 @@
 //! Rust representation of the `DarwinBasketController` Miden component.
 //!
-//! This module is intentionally minimal today. The intent is to wrap
-//! the bundled MASM library (`primitives_library()` + `flow_library()`)
-//! into an [`miden_objects::account::AccountComponent`] suitable for
-//! [`miden_objects::account::AccountBuilder`].
+//! Two parallel paths exist:
 //!
-//! # Ecosystem version mismatch (M1 blocker)
+//! 1. **`account_component_stub`** — uses `miden-objects` 0.12's own
+//!    `Assembler` (transitively `miden-assembly` 0.19) to compile the
+//!    v0.14-line controller source in `asm/controller_v0_19.masm`.
+//!    Procedure bodies are stubs but the resulting `AccountComponent`
+//!    is real and usable by `miden-client`'s `AccountBuilder` —
+//!    enough to actually deploy a Darwin Protocol Account placeholder
+//!    on testnet today.
 //!
-//! The bundled library is assembled with `miden-assembly` 0.23 (matched
-//! to `miden-vm` 0.23 and `miden-core-lib` 0.23, which provides the
-//! u64 division event handler that `darwin::math::felt_div` depends
-//! on). `miden-objects` 0.12 from crates.io is pinned to
-//! `miden-assembly` 0.19; the `next` branch of `0xMiden/protocol`
-//! (which renames the crate to `miden-protocol` 0.15) is on 0.22.
-//! Neither aligns with 0.23.
+//! 2. **The bundled `darwin::*` library** built by `build.rs` —
+//!    assembled with `miden-assembly` 0.23 against `miden-core-lib`
+//!    0.23 (which provides the u64-division event handler that
+//!    `darwin::math::felt_div` depends on). These are the real math
+//!    libraries used by `miden-vm` integration tests.
 //!
-//! Passing a `miden-assembly` 0.23 `Library` to `AccountComponent::new`
-//! fails to type-check because the `Library` types from different
-//! versions of `miden-assembly-syntax` are distinct.
-//!
-//! Until the ecosystem realigns (most likely once `miden-protocol`
-//! ships a release that bundles `miden-assembly` 0.23 alongside the
-//! v0.14-alpha bridge work), `account_component()` is deferred to a
-//! follow-up. The libraries themselves are fully assembled and
-//! tested via `miden-vm` 0.23 (see `tests/*.rs`).
+//! The version skew between paths 1 and 2 (assembly 0.19 vs 0.23) is
+//! the M1 blocker on wiring the full controller bodies into a real
+//! account. Once `miden-protocol` ships a release that bundles
+//! `miden-assembly` 0.23 alongside the v0.14-alpha bridge work, the
+//! two paths converge: `account_component_stub` is replaced by a
+//! version that takes the bundled library directly via
+//! `AccountComponent::new`.
 
 use darwin_baskets::BasketManifest;
+use miden_objects::account::{AccountComponent, AccountType, StorageSlot};
+use miden_objects::assembly::Assembler;
+use miden_objects::AccountError;
+
+/// MASM source for the v0.14-line ("ecosystem-current") controller.
+/// Compiles cleanly against `miden_objects::assembly::Assembler`,
+/// which uses `miden-assembly` 0.19 under the hood.
+pub const CONTROLLER_V0_19_MASM: &str = include_str!("../asm/controller_v0_19.masm");
 
 #[derive(Debug, Clone)]
 pub struct DarwinBasketController {
@@ -41,8 +48,7 @@ impl DarwinBasketController {
 
     /// The MASM procedures exposed by the controller (spec §5.3).
     /// These are the procedures that note scripts will invoke at
-    /// runtime once the controller logic itself ships. They are
-    /// implemented across the bundled `darwin::*` library modules.
+    /// runtime once the controller logic itself ships.
     pub fn procedure_surface() -> &'static [&'static str] {
         &[
             "compute_nav",
@@ -54,5 +60,16 @@ impl DarwinBasketController {
             "read_target_weight",
             "update_oracle_adapter",
         ]
+    }
+
+    /// Builds a stub [`AccountComponent`] from the v0.14-line
+    /// controller MASM. Procedure bodies are placeholders today, but
+    /// the resulting component is wire-compatible with
+    /// `miden-client`'s account deployment and demonstrates the
+    /// procedure surface end-to-end on testnet.
+    pub fn account_component_stub(&self) -> Result<AccountComponent, AccountError> {
+        let storage_slots: Vec<StorageSlot> = (0..10).map(|_| StorageSlot::empty_value()).collect();
+        AccountComponent::compile(CONTROLLER_V0_19_MASM, Assembler::default(), storage_slots)
+            .map(|c| c.with_supported_type(AccountType::RegularAccountImmutableCode))
     }
 }

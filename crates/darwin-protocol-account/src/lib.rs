@@ -124,4 +124,17 @@ mod tests {
         let lib = flow_library();
         assert!(lib.module_infos().count() > 0);
     }
+
+    #[test]
+    fn stub_account_component_compiles() {
+        // Verifies the v0.14-line controller MASM compiles via
+        // miden-objects' bundled Assembler and yields an
+        // AccountComponent ready for AccountBuilder.
+        let manifest = darwin_baskets::core_crypto();
+        let controller = DarwinBasketController::from_manifest(&manifest);
+        let component = controller.account_component_stub().expect("compiles");
+        assert!(component
+            .supported_types()
+            .contains(&miden::AccountType::RegularAccountImmutableCode));
+    }
 }
