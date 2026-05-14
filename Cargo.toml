@@ -6,6 +6,11 @@ members = [
     "crates/darwin-asset-faucets",
     "crates/darwin-notes",
 ]
+exclude = [
+    # Compiled by cargo-miden into a .masp package, not part of the
+    # workspace (different toolchain + crate-type = ["cdylib"]).
+    "crates/darwin-controller-pkg",
+]
 
 [workspace.package]
 version = "0.1.0"
