@@ -66,7 +66,7 @@ end
     )
     .expect("program executes");
 
-    outputs.stack[0].as_canonical_u64()
+    outputs.stack_outputs()[0].as_canonical_u64()
 }
 
 #[test]

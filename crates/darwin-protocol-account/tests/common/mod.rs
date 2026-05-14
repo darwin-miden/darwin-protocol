@@ -76,8 +76,8 @@ end
     )
     .expect("program executes");
 
-    outputs
-        .stack
+    let stack = outputs.stack_outputs();
+    stack
         .iter()
         .take(result_depth)
         .map(|f| f.as_canonical_u64())
