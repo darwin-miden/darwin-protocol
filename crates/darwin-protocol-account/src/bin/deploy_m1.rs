@@ -39,7 +39,29 @@ fn main() {
     println!();
     print_baskets();
     println!();
+    test_component_compilation();
+    println!();
     print_next_steps();
+}
+
+fn test_component_compilation() {
+    println!("Stub AccountComponent compilation:");
+    for basket in darwin_baskets::all_m1() {
+        let controller = DarwinBasketController::from_manifest(&basket);
+        match controller.account_component_stub() {
+            Ok(component) => {
+                println!(
+                    "  {} ({}): ✓ compiled, supported_types={:?}",
+                    basket.symbol,
+                    basket.name,
+                    component.supported_types(),
+                );
+            }
+            Err(e) => {
+                println!("  {} ({}): ✗ {}", basket.symbol, basket.name, e);
+            }
+        }
+    }
 }
 
 fn print_layout() {
