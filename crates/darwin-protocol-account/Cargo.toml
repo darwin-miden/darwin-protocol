@@ -12,6 +12,7 @@ miden-assembly = { workspace = true }
 miden-core-lib = { workspace = true }
 miden-base     = { workspace = true }
 miden-objects  = { workspace = true }
+miden-protocol = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

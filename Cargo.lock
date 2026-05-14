@@ -439,6 +439,7 @@ dependencies = [
  "miden-base",
  "miden-core-lib",
  "miden-objects",
+ "miden-protocol",
  "miden-stdlib",
  "miden-vm",
  "serde",
@@ -1325,6 +1326,7 @@ dependencies = [
  "rand_chacha",
  "rand_core 0.9.5",
  "rand_hc",
+ "rayon",
  "serde",
  "sha2",
  "sha3",
@@ -1615,6 +1617,45 @@ dependencies = [
  "serde-untagged",
  "thiserror 2.0.18",
  "toml 1.1.2+spec-1.1.0",
+]
+
+[[package]]
+name = "miden-protocol"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "140b1b3d6b2a3a2bfaeca8b0d2ca15a8ee6a7e0abebbc4f1a2a3a1f1b7f7f58d"
+dependencies = [
+ "bech32",
+ "fs-err",
+ "getrandom 0.3.4",
+ "miden-assembly 0.22.3",
+ "miden-assembly-syntax 0.22.3",
+ "miden-core 0.22.3",
+ "miden-core-lib",
+ "miden-crypto 0.23.0",
+ "miden-mast-package 0.22.3",
+ "miden-processor 0.22.3",
+ "miden-protocol-macros",
+ "miden-utils-sync 0.22.3",
+ "miden-verifier 0.22.3",
+ "rand 0.9.4",
+ "regex",
+ "semver 1.0.28",
+ "serde",
+ "thiserror 2.0.18",
+ "toml 1.1.2+spec-1.1.0",
+ "walkdir",
+]
+
+[[package]]
+name = "miden-protocol-macros"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cbd8195ba7804fab6ab22f042715fab55c842ac29e99534490243c6a12a3cb8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2202,6 +2243,9 @@ name = "p3-maybe-rayon"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "082bf467011c06c768c579ec6eb9accb5e1e62108891634cc770396e917f978a"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "p3-mds"
@@ -2448,6 +2492,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8b766b9e9254bf3fa98d76e42cf8a5b30628c182dfd5272d270076ee12f0fc0"
 dependencies = [
+ "rayon",
  "serde",
  "transpose",
 ]
