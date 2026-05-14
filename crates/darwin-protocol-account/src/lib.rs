@@ -14,7 +14,18 @@ pub mod component;
 pub mod storage;
 
 pub use component::DarwinBasketController;
-pub use storage::{StorageLayout, StorageSlot};
+pub use storage::StorageLayout;
+
+/// Re-exports of the Miden objects types that the controller's public
+/// surface uses. Keeping a single re-export point here makes future
+/// migrations across miden-base / miden-objects breaking changes
+/// easier to track.
+pub mod miden {
+    pub use miden_objects::account::{
+        Account, AccountBuilder, AccountId, AccountStorageMode, AccountType, SlotName, StorageMap,
+        StorageSlot,
+    };
+}
 
 /// Re-exports of the basket manifest types this controller depends on.
 pub use darwin_baskets::{BasketManifest, Constituent};
@@ -51,5 +62,22 @@ mod tests {
     fn controller_can_be_built_from_core_crypto_manifest() {
         let manifest = darwin_baskets::core_crypto();
         let _controller = DarwinBasketController::from_manifest(&manifest);
+    }
+
+    #[test]
+    fn miden_account_types_are_re_exported() {
+        // Smoke test: the re-export module is wired up and the types
+        // resolve. The actual deployment binary uses these directly.
+        let _: Option<miden::AccountType> = None;
+        let _: Option<miden::AccountStorageMode> = None;
+    }
+
+    #[test]
+    fn miden_assembler_is_wireable() {
+        // Sanity check that miden-assembly is a working dependency.
+        // Once the MASM in `asm/controller.masm` has bodies that parse
+        // cleanly, this can be replaced with an actual `assemble_library`
+        // call against the controller source.
+        let _assembler = miden_assembly::Assembler::default();
     }
 }

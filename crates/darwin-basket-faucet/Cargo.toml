@@ -8,5 +8,6 @@ description = "Darwin basket-token FungibleFaucet with the agglayer_faucet inter
 
 [dependencies]
 darwin-baskets = { workspace = true }
+miden-objects  = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

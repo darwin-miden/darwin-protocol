@@ -8,5 +8,8 @@ description = "Darwin Protocol Account: shared private account per basket, Regul
 
 [dependencies]
 darwin-baskets = { workspace = true }
+miden-assembly = { workspace = true }
+miden-base     = { workspace = true }
+miden-objects  = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

@@ -1,39 +1,48 @@
 //! Deploy the three M1 Darwin baskets on Miden testnet.
 //!
-//! This binary is a structured skeleton. It compiles today against the
-//! placeholder Rust types in the workspace; the actual Miden RPC calls
-//! become real once `miden-client` is added to the workspace Cargo.toml
-//! and the `Client` trait below is replaced with the real
-//! `miden_client::Client`.
+//! Today this binary prints the M1 deployment plan that will be
+//! executed once each crate's MASM and Rust component code is filled
+//! in. Once the MASM bodies in `asm/controller.masm` and the basket /
+//! asset faucets are real, the steps below become live RPC calls to a
+//! Miden node.
 //!
-//! Intended use:
+//! Intended use (post-M1-impl):
 //!
 //!     cargo run -p darwin-protocol-account --bin deploy_m1 -- \
-//!         --rpc https://rpc.testnet.miden.io \
+//!         --rpc https://rpc.testnet.miden.io:57291 \
 //!         --operator-key <path-to-falcon-key> \
 //!         --pragma-oracle-id <hex-or-bech32>
 //!
 //! Order of operations (mirrors §5.4 and §6.6 of the M1 spec):
 //!
-//!   1. Deploy the four custom Darwin asset faucets (dETH, dWBTC,
-//!      dUSDT, dDAI).
-//!   2. Deploy the darwin-oracle-adapter pointing at the current Pragma
-//!      oracle account.
-//!   3. For each of the three baskets (DCC, DAG, DCO):
-//!      a. Deploy the basket FungibleFaucet with the `agglayer_faucet`
-//!         interface.
-//!      b. Deploy the Darwin Protocol Account, ownership pointing at the
-//!         basket faucet and oracle adapter populated in slot 8.
-//!      c. Write the resulting (basket_faucet_id, protocol_account_id)
-//!         pair back into the manifest section of `darwin-baskets/state/
-//!         testnet.toml` for the SDK to consume.
-//!   4. Optionally submit `CONFIG_AGG_BRIDGE` notes to register each
-//!      basket faucet with the AggLayer bridge (requires bridge-admin
-//!      coordination; not done by this script).
+//! 1. Deploy the four custom Darwin asset faucets (dETH, dWBTC, dUSDT,
+//!    dDAI).
+//! 2. Deploy the darwin-oracle-adapter pointing at the current Pragma
+//!    oracle account.
+//! 3. For each of the three baskets (DCC, DAG, DCO), deploy the basket
+//!    FungibleFaucet with the `agglayer_faucet` interface, then deploy
+//!    the Darwin Protocol Account (ownership pointing at the basket
+//!    faucet, oracle adapter populated in slot 8), then write the
+//!    resulting (basket_faucet_id, protocol_account_id) pair back into
+//!    `darwin-baskets/state/testnet.toml` for the SDK to consume.
+//! 4. Optionally submit `CONFIG_AGG_BRIDGE` notes to register each
+//!    basket faucet with the AggLayer bridge (requires bridge-admin
+//!    coordination; not done by this script).
 
+use darwin_protocol_account::miden::{AccountStorageMode, AccountType};
 use darwin_protocol_account::{DarwinBasketController, StorageLayout};
 
 fn main() {
+    print_layout();
+    println!();
+    print_planned_accounts();
+    println!();
+    print_baskets();
+    println!();
+    print_next_steps();
+}
+
+fn print_layout() {
     let layout = StorageLayout::default();
     println!("Darwin Protocol Account storage layout (M1 spec §5.2):");
     println!("  version_slot              = {}", layout.version_slot);
@@ -64,8 +73,33 @@ fn main() {
         "  manifest_version_slot     = {}",
         layout.manifest_version_slot
     );
+}
 
-    println!();
+fn print_planned_accounts() {
+    println!("Accounts to deploy on Miden testnet:");
+    println!(
+        "  - 1x Darwin Protocol Account per basket  (type={:?}, storage_mode={:?})",
+        AccountType::RegularAccountImmutableCode,
+        AccountStorageMode::Private,
+    );
+    println!(
+        "  - 1x basket-token FungibleFaucet per basket  (type={:?}, storage_mode={:?})",
+        AccountType::FungibleFaucet,
+        AccountStorageMode::Public,
+    );
+    println!(
+        "  - 4x custom asset faucets (dETH, dWBTC, dUSDT, dDAI)  (type={:?}, storage_mode={:?})",
+        AccountType::FungibleFaucet,
+        AccountStorageMode::Public,
+    );
+    println!(
+        "  - 1x oracle adapter  (type={:?}, storage_mode={:?})",
+        AccountType::RegularAccountImmutableCode,
+        AccountStorageMode::Public,
+    );
+}
+
+fn print_baskets() {
     println!("Baskets to deploy (from darwin-baskets):");
     for basket in darwin_baskets::all_m1() {
         let controller = DarwinBasketController::from_manifest(&basket);
@@ -87,8 +121,14 @@ fn main() {
             );
         }
     }
+}
 
-    println!();
-    println!("This binary is a skeleton. Real deployment lands once the workspace");
-    println!("enables miden-base / miden-client / miden-agglayer dependencies.");
+fn print_next_steps() {
+    println!("Next steps for the M1 implementation phase:");
+    println!("  1. Fill in the MASM procedure bodies in asm/controller.masm.");
+    println!("  2. Enable the assembler hook in build.rs once procedure bodies parse.");
+    println!("  3. Construct the AccountComponent from the assembled .masl and");
+    println!("     wire it into AccountBuilder for each basket.");
+    println!("  4. Replace this binary's prints with miden-client gRPC submissions");
+    println!("     against the configured Miden testnet endpoint.");
 }

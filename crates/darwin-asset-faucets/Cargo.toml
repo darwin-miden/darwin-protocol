@@ -7,5 +7,6 @@ repository.workspace = true
 description = "Custom Darwin testnet asset faucets (dETH, dWBTC, dUSDT, dDAI) used by the M1 baskets."
 
 [dependencies]
+miden-objects = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

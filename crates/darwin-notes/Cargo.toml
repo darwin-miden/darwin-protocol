@@ -8,5 +8,6 @@ description = "Note scripts consumed by the Darwin Protocol Account: DepositNote
 
 [dependencies]
 darwin-baskets = { workspace = true }
+miden-objects  = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
