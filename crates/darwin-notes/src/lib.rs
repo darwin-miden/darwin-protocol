@@ -25,14 +25,26 @@ pub const REDEEM_NOTE_MASM: &str = include_str!("../asm/redeem_note.masm");
 /// basket_faucet::mint cross-account call) lands next.
 pub const ATOMIC_DEPOSIT_NOTE_MASM: &str = include_str!("../asm/atomic_deposit_note.masm");
 
+/// Self-contained atomic redeem note. Symmetric to
+/// `ATOMIC_DEPOSIT_NOTE_MASM`: the user attaches basket-token assets
+/// to the note; the script runs the redeem-value math via
+/// `darwin::math::felt_div` then hands the basket tokens to the
+/// controller via the controller's `receive_asset` proc. The on-chain
+/// effect is "user surrenders basket tokens, the controller absorbs
+/// them" — the M2 chains in an explicit basket-faucet `burn` call so
+/// the supply ticks down too.
+pub const ATOMIC_REDEEM_NOTE_MASM: &str = include_str!("../asm/atomic_redeem_note.masm");
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DarwinNote {
     Deposit,
     Redeem,
-    /// Atomic deposit note — compute-only body that uses
-    /// `darwin::math::felt_div` directly. Used today; the full
-    /// kernel-aware version comes next.
+    /// Atomic deposit note — kernel-aware body that runs
+    /// `darwin::math::felt_div` and drains the note's vault into the
+    /// consuming controller.
     AtomicDeposit,
+    /// Atomic redeem note — symmetric pair of AtomicDeposit.
+    AtomicRedeem,
 }
 
 impl DarwinNote {
@@ -41,6 +53,7 @@ impl DarwinNote {
             DarwinNote::Deposit => DEPOSIT_NOTE_MASM,
             DarwinNote::Redeem => REDEEM_NOTE_MASM,
             DarwinNote::AtomicDeposit => ATOMIC_DEPOSIT_NOTE_MASM,
+            DarwinNote::AtomicRedeem => ATOMIC_REDEEM_NOTE_MASM,
         }
     }
 
@@ -51,6 +64,7 @@ impl DarwinNote {
             DarwinNote::Deposit => "deposit-note",
             DarwinNote::Redeem => "redeem-note",
             DarwinNote::AtomicDeposit => "atomic-deposit-note",
+            DarwinNote::AtomicRedeem => "atomic-redeem-note",
         }
     }
 
@@ -73,7 +87,11 @@ impl DarwinNote {
                 "miden::note",
                 "miden::account",
             ],
-            DarwinNote::AtomicDeposit => &["darwin::math"],
+            DarwinNote::AtomicDeposit | DarwinNote::AtomicRedeem => &[
+                "darwin::math",
+                "miden::protocol::active_note",
+                "miden::protocol::asset",
+            ],
         }
     }
 }
@@ -113,12 +131,14 @@ mod tests {
         assert!(!DEPOSIT_NOTE_MASM.trim().is_empty());
         assert!(!REDEEM_NOTE_MASM.trim().is_empty());
         assert!(!ATOMIC_DEPOSIT_NOTE_MASM.trim().is_empty());
+        assert!(!ATOMIC_REDEEM_NOTE_MASM.trim().is_empty());
     }
 
     #[test]
     fn note_sources_differ() {
         assert_ne!(DEPOSIT_NOTE_MASM, REDEEM_NOTE_MASM);
         assert_ne!(DEPOSIT_NOTE_MASM, ATOMIC_DEPOSIT_NOTE_MASM);
+        assert_ne!(ATOMIC_DEPOSIT_NOTE_MASM, ATOMIC_REDEEM_NOTE_MASM);
     }
 
     #[test]
@@ -126,6 +146,7 @@ mod tests {
         assert_eq!(DarwinNote::Deposit.id(), "deposit-note");
         assert_eq!(DarwinNote::Redeem.id(), "redeem-note");
         assert_eq!(DarwinNote::AtomicDeposit.id(), "atomic-deposit-note");
+        assert_eq!(DarwinNote::AtomicRedeem.id(), "atomic-redeem-note");
     }
 
     #[test]
@@ -133,9 +154,19 @@ mod tests {
         let source = DarwinNote::AtomicDeposit.masm_source();
         assert!(source.contains("use darwin::math"));
         assert!(source.contains("exec.math::felt_div"));
-        assert_eq!(
-            DarwinNote::AtomicDeposit.imported_libraries(),
-            &["darwin::math"],
+    }
+
+    #[test]
+    fn atomic_redeem_note_imports_darwin_math_and_drains_assets() {
+        let source = DarwinNote::AtomicRedeem.masm_source();
+        assert!(source.contains("use darwin::math"));
+        assert!(source.contains("use miden::protocol::active_note"));
+        assert!(source.contains("exec.math::felt_div"));
+        // It must call into the controller's receive_asset MAST root
+        // exactly once to drain the basket-token vault.
+        assert!(
+            source.contains("call.0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb"),
+            "atomic redeem note must call the v2 controller's receive_asset"
         );
     }
 
