@@ -1,0 +1,48 @@
+# Flow B trigger note — M2 Track 3.
+#
+# Spec: darwin-docs/m1-architecture-spec.md §6.4 (Flow B).
+#
+# Consumed by a v4+ Darwin Protocol Account (controller).
+# The note has zero assets; its only payload is metadata describing
+# which basket to rebalance.
+#
+# What it does on-chain:
+#
+#   1. Push the basket id + a timestamp on the stack.
+#   2. `call.<controller::execute_rebalance_step>` — the v4 controller's
+#      new entry point. The controller writes the timestamp into its
+#      slot-3 storage ("last rebalance timestamp") via the kernel's
+#      `set_item` primitive and returns.
+#
+# The first M2 iteration stops there — proves the rebalance trigger
+# path lands on-chain and the controller can record state changes
+# driven by a note. The follow-up adds the controller emitting
+# per-asset swap notes targeting a (mock) DEX account, which is the
+# full grant §2 ("Rebalancing live on Miden: drift detection →
+# Near Intent → DEX swap → portfolio updated") once the in-protocol
+# Miden DEX is live.
+#
+# The note is symmetric to atomic_deposit_note.masm / atomic_redeem
+# _note.masm in shape — both call into the controller via a hardcoded
+# MAST root — but it carries no vault. Anyone can build and submit
+# one (the rebalance bot in production).
+
+use miden::core::sys
+
+# Demo basket id: 1 = DCC, 2 = DAG, 3 = DCO. Production caller
+# encodes the keccak256(symbol) into a felt-sized id and passes it
+# via note inputs.
+const BASKET_ID = 1
+
+# Demo timestamp. Production caller reads block.timestamp off-chain
+# and passes it via note inputs. (Inside Miden the kernel exposes the
+# current block timestamp via miden::tx::get_block_timestamp; using
+# note inputs keeps this script tightly bounded for the M2 demo.)
+const REBALANCE_TS = 1747500000
+
+begin
+    push.REBALANCE_TS
+    push.BASKET_ID
+    call.0xddff122fa9aff9c1e5b5c253b509d24a795a9ad709f32d54e91eb53a77b84c53
+    exec.sys::truncate_stack
+end

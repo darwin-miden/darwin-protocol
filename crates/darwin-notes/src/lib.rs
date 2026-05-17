@@ -35,6 +35,14 @@ pub const ATOMIC_DEPOSIT_NOTE_MASM: &str = include_str!("../asm/atomic_deposit_n
 /// the supply ticks down too.
 pub const ATOMIC_REDEEM_NOTE_MASM: &str = include_str!("../asm/atomic_redeem_note.masm");
 
+/// Flow B trigger note — calls into the v4 controller's
+/// `execute_rebalance_step` proc. Carries no assets, only metadata
+/// (basket id + timestamp) encoded in the script constants.
+///
+/// M2 Track 3 deliverable. Spec: m1-architecture-spec.md §6.4.
+pub const REBALANCE_TRIGGER_NOTE_MASM: &str =
+    include_str!("../asm/rebalance_trigger_note.masm");
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DarwinNote {
     Deposit,
@@ -45,6 +53,9 @@ pub enum DarwinNote {
     AtomicDeposit,
     /// Atomic redeem note — symmetric pair of AtomicDeposit.
     AtomicRedeem,
+    /// Flow B trigger note — assetless, calls
+    /// `controller::execute_rebalance_step`.
+    RebalanceTrigger,
 }
 
 impl DarwinNote {
@@ -54,6 +65,7 @@ impl DarwinNote {
             DarwinNote::Redeem => REDEEM_NOTE_MASM,
             DarwinNote::AtomicDeposit => ATOMIC_DEPOSIT_NOTE_MASM,
             DarwinNote::AtomicRedeem => ATOMIC_REDEEM_NOTE_MASM,
+            DarwinNote::RebalanceTrigger => REBALANCE_TRIGGER_NOTE_MASM,
         }
     }
 
@@ -65,6 +77,7 @@ impl DarwinNote {
             DarwinNote::Redeem => "redeem-note",
             DarwinNote::AtomicDeposit => "atomic-deposit-note",
             DarwinNote::AtomicRedeem => "atomic-redeem-note",
+            DarwinNote::RebalanceTrigger => "rebalance-trigger-note",
         }
     }
 
@@ -92,6 +105,7 @@ impl DarwinNote {
                 "miden::protocol::active_note",
                 "miden::protocol::asset",
             ],
+            DarwinNote::RebalanceTrigger => &["miden::core::sys"],
         }
     }
 }
@@ -132,6 +146,7 @@ mod tests {
         assert!(!REDEEM_NOTE_MASM.trim().is_empty());
         assert!(!ATOMIC_DEPOSIT_NOTE_MASM.trim().is_empty());
         assert!(!ATOMIC_REDEEM_NOTE_MASM.trim().is_empty());
+        assert!(!REBALANCE_TRIGGER_NOTE_MASM.trim().is_empty());
     }
 
     #[test]
@@ -139,6 +154,7 @@ mod tests {
         assert_ne!(DEPOSIT_NOTE_MASM, REDEEM_NOTE_MASM);
         assert_ne!(DEPOSIT_NOTE_MASM, ATOMIC_DEPOSIT_NOTE_MASM);
         assert_ne!(ATOMIC_DEPOSIT_NOTE_MASM, ATOMIC_REDEEM_NOTE_MASM);
+        assert_ne!(REBALANCE_TRIGGER_NOTE_MASM, ATOMIC_DEPOSIT_NOTE_MASM);
     }
 
     #[test]
@@ -147,6 +163,20 @@ mod tests {
         assert_eq!(DarwinNote::Redeem.id(), "redeem-note");
         assert_eq!(DarwinNote::AtomicDeposit.id(), "atomic-deposit-note");
         assert_eq!(DarwinNote::AtomicRedeem.id(), "atomic-redeem-note");
+        assert_eq!(DarwinNote::RebalanceTrigger.id(), "rebalance-trigger-note");
+    }
+
+    #[test]
+    fn rebalance_trigger_note_calls_v4_execute_rebalance_step() {
+        // MAST root from build_v4_rebalance_controller's output. If
+        // the v4 controller source changes, this assertion fails and
+        // the note must be rebuilt with the new root.
+        let expected_root =
+            "0xddff122fa9aff9c1e5b5c253b509d24a795a9ad709f32d54e91eb53a77b84c53";
+        assert!(
+            REBALANCE_TRIGGER_NOTE_MASM.contains(&format!("call.{expected_root}")),
+            "rebalance trigger note must call execute_rebalance_step"
+        );
     }
 
     #[test]
