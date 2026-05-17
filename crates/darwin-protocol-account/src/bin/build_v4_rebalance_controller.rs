@@ -11,7 +11,7 @@
 //!     note emission targeting a mock DEX account.
 //!
 //! Together with `darwin-notes/asm/trigger_note.masm` this delivers
-//! the Flow B end-to-end demo on Miden testnet, the grant M2 §2 ask.
+//! the Flow B end-to-end demo on Miden testnet.
 //!
 //! Usage:
 //!     cargo run -p darwin-protocol-account \

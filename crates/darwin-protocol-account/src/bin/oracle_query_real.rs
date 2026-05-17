@@ -1,8 +1,8 @@
 //! Call into the **real** Pragma oracle on Miden testnet from a
 //! Darwin transaction script.
 //!
-//! Closes the M1 deliverable #3 gap by proving Darwin can read a live
-//! Pragma price end-to-end on testnet — not just from a mock. Workflow:
+//! Proves Darwin can read a live Pragma price end-to-end on
+//! testnet — not just from a mock. Workflow:
 //!
 //!   1. Compute Pragma's `oracle::get_median` MAST root locally by
 //!      re-running their build pipeline (`darwin_oracle_adapter::

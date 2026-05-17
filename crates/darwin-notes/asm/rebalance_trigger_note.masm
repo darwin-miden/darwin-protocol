@@ -18,7 +18,7 @@
 # path lands on-chain and the controller can record state changes
 # driven by a note. The follow-up adds the controller emitting
 # per-asset swap notes targeting a (mock) DEX account, which is the
-# full grant §2 ("Rebalancing live on Miden: drift detection →
+# full rebalance path ("drift detection →
 # Near Intent → DEX swap → portfolio updated") once the in-protocol
 # Miden DEX is live.
 #

@@ -147,7 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("Next: the controller consumes this note in a separate tx,");
     println!("running compute_nav + compute_mint_amount via darwin::math::felt_div");
-    println!("on real u64 division — the closing piece of M1 deliverable 5.");
+    println!("on real u64 division — the closing piece of atomic Flow A.");
 
     Ok(())
 }

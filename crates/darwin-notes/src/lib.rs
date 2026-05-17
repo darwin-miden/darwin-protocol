@@ -39,7 +39,7 @@ pub const ATOMIC_REDEEM_NOTE_MASM: &str = include_str!("../asm/atomic_redeem_not
 /// `execute_rebalance_step` proc. Carries no assets, only metadata
 /// (basket id + timestamp) encoded in the script constants.
 ///
-/// M2 Track 3 deliverable. Spec: m1-architecture-spec.md §6.4.
+/// Flow B trigger note used by the rebalance bot.
 pub const REBALANCE_TRIGGER_NOTE_MASM: &str =
     include_str!("../asm/rebalance_trigger_note.masm");
 

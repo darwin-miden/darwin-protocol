@@ -4,7 +4,7 @@
 //! Darwin controller that calls `darwin::math::felt_div` (which uses
 //! `miden::core::math::u64::div` via miden-core-lib 0.22). This is
 //! the exact shape `miden-client 0.14` deploys to testnet. If it
-//! compiles, M1 deliverable 5 (atomic Flow A) is one
+//! compiles, the atomic Flow A path is one
 //! `Client::add_account()` away.
 //!
 //! The "ecosystem version skew" story dies here: the math libraries
