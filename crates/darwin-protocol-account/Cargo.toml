@@ -9,6 +9,7 @@ description = "Darwin Protocol Account: shared private account per basket, Regul
 [dependencies]
 darwin-baskets    = { workspace = true }
 darwin-notes      = { path = "../darwin-notes" }
+darwin-oracle-adapter = { path = "../../../darwin-oracle-adapter", features = ["pragma-live"], optional = true }
 miden-assembly    = { workspace = true }
 miden-core-lib    = { workspace = true }
 miden-base        = { workspace = true }
@@ -25,6 +26,19 @@ tokio             = { version = "1", features = ["rt", "rt-multi-thread", "macro
 [build-dependencies]
 miden-assembly = { workspace = true }
 miden-core-lib = { workspace = true }
+
+[features]
+default = []
+pragma-live = ["dep:darwin-oracle-adapter", "dep:anyhow"]
+
+[dependencies.anyhow]
+version = "1"
+optional = true
+
+[[bin]]
+name = "oracle_query_real"
+path = "src/bin/oracle_query_real.rs"
+required-features = ["pragma-live"]
 
 [dev-dependencies]
 miden-vm = { workspace = true }
