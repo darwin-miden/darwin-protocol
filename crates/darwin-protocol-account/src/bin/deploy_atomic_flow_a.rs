@@ -69,8 +69,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_static_library(core_lib.as_ref())?
         .assemble_library([math_module])?;
 
-    let note_program = Assembler::default()
-        .with_static_library(core_lib.as_ref())?
+    // Use the protocol's transaction-kernel assembler so the note
+    // script can resolve `miden::protocol::active_note` and the
+    // `asset::ASSET_*` constants the asset-drain loop references.
+    let note_program = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())?
         .assemble_program(darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM)?;
     let note_script = NoteScript::new(note_program);
