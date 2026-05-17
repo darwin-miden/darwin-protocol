@@ -122,6 +122,7 @@ fn parse_state_toml(src: &str) -> Vec<AccountCheck> {
     labels.insert("test_wallet", "team wallet");
     labels.insert("user_wallet", "user wallet");
     labels.insert("mock_oracle", "mock pragma oracle");
+    labels.insert("pragma_live", "live pragma oracle");
 
     for line in src.lines() {
         let line = line.trim();
@@ -138,6 +139,7 @@ fn parse_state_toml(src: &str) -> Vec<AccountCheck> {
             .strip_prefix("account_id")
             .or_else(|| line.strip_prefix("account_id_v1"))
             .or_else(|| line.strip_prefix("account_id_v2"))
+            .or_else(|| line.strip_prefix("oracle_account_hex"))
         {
             if let Some(start) = rest.find("0x") {
                 if let Some(end) = rest[start..].find('"') {
