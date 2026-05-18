@@ -93,7 +93,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .collect::<Vec<_>>()
             .as_slice(),
     )?;
-    let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(vec![])?);
+    // Parameterised note storage: [deposit_value, fee_factor, nav_scale].
+    // The atomic deposit note reads these via `active_note::get_storage`
+    // and computes deposit_value * fee_factor / nav_scale via
+    // darwin::math::felt_div on-chain. Demo defaults below match the
+    // earlier hard-coded values so observable behaviour is unchanged.
+    let storage_felts = vec![
+        miden_client::Felt::new(200_000_000_000), // deposit_value
+        miden_client::Felt::new(9_970),           // fee_factor (99.7%)
+        miden_client::Felt::new(10_000_000_000),  // nav_scale
+    ];
+    let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(storage_felts)?);
     let note = Note::new(assets, metadata, recipient);
     println!("Constructed Note id: {}", note.id());
 

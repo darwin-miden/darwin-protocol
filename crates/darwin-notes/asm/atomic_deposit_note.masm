@@ -55,21 +55,30 @@ proc drain_assets_into_controller
 end
 
 # --------------------------------------------------------------------------------
-# `compute_mint_amount` — same math as the controller's compute_mint_amount, but
-# run in the note's own context so the result is observable. Demo inputs match
-# the basic atomic deposit note: deposit_value=$100, fee_factor=9970 (30 bps),
-# nav=$2.00 in 8-decimal scale (uplifted to 1e11 to stay in u64 product range).
+# `compute_mint_amount_from_storage` — same math as the demo proc, but the three
+# operands come from the note's storage (set by the caller when the note is
+# constructed). Layout, in order:
+#   storage[0] = deposit_value
+#   storage[1] = fee_factor
+#   storage[2] = nav_scale
+# `active_note::get_storage` writes them to memory[dest_ptr..dest_ptr+3] as
+# individual felts (it pads/round-trips via pipe_double_words_to_memory internally
+# but each storage item still lands at a single felt address).
 # --------------------------------------------------------------------------------
-proc compute_demo_mint
-    push.200000000000
-    push.9970
-    push.10000000000
+proc compute_mint_amount_from_storage
+    push.100                          # dest_ptr
+    exec.active_note::get_storage     # writes storage to memory
+    drop drop                          # discard [num_items, dest_ptr]
+
+    push.100 mem_load                 # deposit_value
+    push.101 mem_load                 # fee_factor
+    push.102 mem_load                 # nav_scale
     mul
     exec.math::felt_div
     drop
 end
 
 begin
-    exec.compute_demo_mint
+    exec.compute_mint_amount_from_storage
     exec.drain_assets_into_controller
 end
