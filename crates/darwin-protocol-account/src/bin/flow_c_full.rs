@@ -37,9 +37,13 @@ use rand::RngCore;
 
 const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
 const REAL_BODIES_CONTROLLER_HEX: &str = "0xa25aa0b00007688024b74b05a52aab";
-// DCC basket-token faucet (Darwin team-controlled, deployed in M1).
-const DCC_FAUCET_HEX: &str = "0x2066f2da1f91ba202af5251d39101c";
-// User already holds 100 DCC (minted + consumed earlier).
+// Basket-token faucet. M1 deploys: DCC 0x2066f2da…, DAG 0xfb6811fd…,
+// DCO 0xbe4efc67…. The atomic redeem path is faucet-agnostic; pick
+// whichever the user wallet currently holds units of (run
+// `miden client account --show <user>` to check). 2026-05-20 demo
+// switched to DAG because prior Flow C runs had drained the DCC
+// balance.
+const DCC_FAUCET_HEX: &str = "0xfb6811fd6399df206d44f62800620d";
 const BURN_AMOUNT: u64 = 50;
 
 #[tokio::main]
@@ -95,7 +99,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .collect::<Vec<_>>()
             .as_slice(),
     )?;
-    let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(vec![])?);
+    // Parameterised note storage for atomic_redeem_note:
+    // [burn_amount, gross_release_factor, scale]. The note reads these
+    // via active_note::get_storage and computes
+    //   release_value = burn_amount * gross_release_factor / scale
+    // via darwin::math::felt_div. Empty storage triggers divide-by-zero.
+    let storage_felts = vec![
+        miden_client::Felt::new(BURN_AMOUNT),
+        miden_client::Felt::new(9_970),   // gross_release_factor (99.7% net of 30 bps redeem fee)
+        miden_client::Felt::new(1),       // scale (placeholder denominator)
+    ];
+    let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(storage_felts)?);
     let note = Note::new(assets, metadata, recipient);
     println!("Constructed RedeemNote id: {}", note.id());
 
