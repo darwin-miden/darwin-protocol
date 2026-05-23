@@ -38,12 +38,13 @@ use rand::RngCore;
 const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
 const REAL_BODIES_CONTROLLER_HEX: &str = "0xa25aa0b00007688024b74b05a52aab";
 // Basket-token faucet. M1 deploys: DCC 0x2066f2da…, DAG 0xfb6811fd…,
-// DCO 0xbe4efc67…. The atomic redeem path is faucet-agnostic; pick
-// whichever the user wallet currently holds units of (run
-// `miden client account --show <user>` to check). 2026-05-20 demo
-// switched to DAG because prior Flow C runs had drained the DCC
-// balance.
-const DCC_FAUCET_HEX: &str = "0xfb6811fd6399df206d44f62800620d";
+// DCO 0xbe4efc67…. The atomic redeem path is faucet-agnostic — the
+// note script doesn't care which faucet it's burning, only that the
+// user wallet actually holds enough units of it. Override the default
+// hint via env `DARWIN_FAUCET_HEX` if you want to force a specific
+// faucet; otherwise the binary discovers a fungible asset with
+// balance >= BURN_AMOUNT from the user wallet's vault.
+const DEFAULT_FAUCET_HINT_HEX: &str = "0xfb6811fd6399df206d44f62800620d";
 const BURN_AMOUNT: u64 = 50;
 
 #[tokio::main]
@@ -79,9 +80,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
     let controller = AccountId::from_hex(REAL_BODIES_CONTROLLER_HEX)?;
-    let dcc_faucet = AccountId::from_hex(DCC_FAUCET_HEX)?;
+
+    // Sync so the local store has the freshest vault state. The user
+    // wallet is private (Falcon-512), so we can't import_account_by_id
+    // for it — it's already locally tracked.
+    println!("Syncing wallet state…");
+    client.sync_state().await?;
+
+    // Faucet discovery: env override > hint balance > any vault asset
+    // with balance >= BURN_AMOUNT. This makes the binary self-bootstrap
+    // — no manual `miden client account --show` step.
+    let user_account = client
+        .get_account(user_wallet)
+        .await?
+        .ok_or_else(|| format!("user wallet {USER_WALLET_HEX} not in store after sync"))?;
+    let faucet = pick_redeem_faucet(&user_account)?;
+    println!(
+        "Using faucet {} (balance {} ≥ burn {})",
+        faucet.to_hex(),
+        user_account.vault().get_balance(faucet)?,
+        BURN_AMOUNT,
+    );
     let assets = NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(
-        dcc_faucet,
+        faucet,
         BURN_AMOUNT,
     )?)])?;
     let metadata = NoteMetadata::new(user_wallet, NoteType::Public);
@@ -157,4 +178,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("underlyings back to the user wallet.");
 
     Ok(())
+}
+
+fn pick_redeem_faucet(
+    user_account: &miden_client::account::Account,
+) -> Result<AccountId, Box<dyn std::error::Error>> {
+    if let Ok(forced) = std::env::var("DARWIN_FAUCET_HEX") {
+        let id = AccountId::from_hex(forced.trim())?;
+        let bal = user_account.vault().get_balance(id)?;
+        if bal < BURN_AMOUNT {
+            return Err(format!(
+                "DARWIN_FAUCET_HEX={forced} but wallet balance is {bal} < {BURN_AMOUNT}",
+            )
+            .into());
+        }
+        return Ok(id);
+    }
+
+    let hint = AccountId::from_hex(DEFAULT_FAUCET_HINT_HEX)?;
+    if user_account.vault().get_balance(hint).unwrap_or(0) >= BURN_AMOUNT {
+        return Ok(hint);
+    }
+
+    let candidates: Vec<(AccountId, u64)> = user_account
+        .vault()
+        .assets()
+        .filter_map(|a| match a {
+            Asset::Fungible(fa) => Some((fa.faucet_id(), fa.amount())),
+            Asset::NonFungible(_) => None,
+        })
+        .filter(|(_, amt)| *amt >= BURN_AMOUNT)
+        .collect();
+
+    if candidates.is_empty() {
+        return Err(format!(
+            "user wallet {USER_WALLET_HEX} has no fungible asset with balance ≥ {BURN_AMOUNT}. \
+             Run a deposit first (e.g. `flow_a_full`) so the controller mints basket-tokens to it."
+        )
+        .into());
+    }
+
+    let (best, _) = candidates
+        .iter()
+        .min_by_key(|(_, amt)| *amt)
+        .copied()
+        .unwrap();
+    Ok(best)
 }
