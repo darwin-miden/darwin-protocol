@@ -109,6 +109,26 @@ pub proc get_fees
     exec.active_account::get_map_item
 end
 
+#! Admin: write the target-weights word for a basket.
+#! Stack on entry:   [basket_id_word(4), weights_word(4), pad(8)]
+#! Stack on exit:    [old_value_word(4), pad]
+#!
+#! Authenticated via `native_account::set_map_item` — the controller
+#! tx itself must be the executing account, so this is only callable
+#! by an admin tx signed for the controller account.
+pub proc set_target_weights
+    push.0 push.3                            # slot 3
+    exec.native_account::set_map_item
+end
+
+#! Admin: write the fees word for a basket.
+#! Stack on entry:   [basket_id_word(4), fees_word(4), pad(8)]
+#! Stack on exit:    [old_value_word(4), pad]
+pub proc set_fees
+    push.0 push.4
+    exec.native_account::set_map_item
+end
+
 # ---------------------------------------------------------------------
 # v5 — 1.4b: per-user position storage on Miden.
 # ---------------------------------------------------------------------
@@ -122,48 +142,20 @@ pub proc get_user_position
     exec.active_account::get_map_item
 end
 
-# Internal helpers for credit/debit: read-modify-write the user's
-# position word. The note script that consumed the atomic note pushes
-# the user_basket_key + amount, calls this, and the controller stores
-# the updated position.
-
-#! Increment a user's basket position by `amount`.
-#! Stack on entry:   [user_basket_key_word(4), amount, pad]
-#! Stack on exit:    [new_position, pad]
+#! Admin: write a user's basket position word (absolute set).
+#! Stack on entry:   [user_basket_key_word(4), value_word(4), pad(8)]
+#! Stack on exit:    [old_value_word(4), pad]
 #!
-#! Note: the actual `set_map_item` write is gated behind the
-#! authentication path of the consuming transaction — the controller
-#! consumer tx must be the one running this, since it's the only
-#! account allowed to touch its own storage. For M1.4b first iteration
-#! we expose the read side + the compute-only credit (the write side
-#! requires a separate signed call that lands in the same tx context;
-#! kept for the follow-up that wires the note → controller call chain).
-pub proc credit_user
-    # Save amount + key for after the read.
-    movup.4                                  # [amount, key(4), pad]
-    movdn.8                                  # [key(4), pad(3), amount, pad]
-
-    # Snapshot existing position.
-    push.0 push.10
-    exec.active_account::get_map_item        # [prev_position_word(4), amount, ...]
-
-    # Add amount (only the first felt of the word is used as scalar).
-    movup.8                                  # [amount, prev(4), ...]
-    add                                      # [new_position_first_felt, prev[1..3], ...]
-end
-
-#! Decrement a user's basket position by `amount`.
-#! Stack on entry:   [user_basket_key_word(4), amount, pad]
-#! Stack on exit:    [new_position_first_felt, prev[1..3], pad]
-pub proc debit_user
-    movup.4
-    movdn.8
-
-    push.0 push.10
-    exec.active_account::get_map_item
-
-    movup.8
-    sub
+#! The "credit" and "debit" semantics are layered above this in the
+#! note script that calls into the controller: the note reads the
+#! current position via `get_user_position`, computes the new value
+#! off-stack, and calls `set_user_position` with the result. Keeping
+#! the controller proc as a pure setter avoids the complex stack
+#! juggling needed for in-MASM read-modify-write, and matches how
+#! `set_target_weights` / `set_fees` operate.
+pub proc set_user_position
+    push.0 push.10                           # slot 10 — user_positions map
+    exec.native_account::set_map_item
 end
 "#;
 
