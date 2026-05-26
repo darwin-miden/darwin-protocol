@@ -27,12 +27,14 @@ use miden_client::account::{
     AccountBuilder, AccountStorageMode, AccountType, StorageSlot,
 };
 use miden_client::builder::ClientBuilder;
-use miden_client::keystore::FilesystemKeyStore;
+use miden_client::keystore::{FilesystemKeyStore, Keystore};
 use miden_client_sqlite_store::SqliteStore;
 use miden_mast_package::Package;
+use miden_client::auth::{AuthSchemeId, AuthSecretKey};
 use miden_protocol::account::component::AccountComponentMetadata;
 use miden_protocol::account::StorageSlotName;
 use miden_assembly::serde::Deserializable;
+use miden_client::auth::AuthSingleSig;
 use rand::RngCore;
 
 fn parse_args() -> (PathBuf, bool) {
@@ -109,10 +111,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "darwin-basket-controller-v5-full-storage",
         [AccountType::RegularAccountImmutableCode],
     );
+    // Slots 2 (pool_positions), 3 (target_weights), 4 (fees), and
+    // 10 (user_positions) are StorageMaps. The rest are scalar values.
+    let map_slots = [2usize, 3, 4, 10];
     let storage_slots: Vec<StorageSlot> = (0..=10)
         .map(|i| {
             let name = StorageSlotName::new(format!("darwin::slot_{i}")).expect("slot name");
-            StorageSlot::with_empty_value(name)
+            if map_slots.contains(&i) {
+                StorageSlot::with_empty_map(name)
+            } else {
+                StorageSlot::with_empty_value(name)
+            }
         })
         .collect();
 
@@ -126,46 +135,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         component.procedures().count(),
     );
 
+    // Generate a fresh Falcon-512 keypair for the controller's auth
+    // component. The private key is stored in the local keystore so
+    // future admin txs can be signed.
+    let auth_scheme = AuthSchemeId::Falcon512Poseidon2;
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2();
+    let auth_component = AuthSingleSig::new(
+        key_pair.public_key().to_commitment(),
+        auth_scheme,
+    );
+
     let mut seed = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut seed);
 
-    let builder = AccountBuilder::new(seed)
+    let account = AccountBuilder::new(seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(AccountStorageMode::Private)
-        .with_component(component);
+        .with_auth_component(auth_component)
+        .with_component(component)
+        .build()
+        .map_err(|e| format!("build: {e}"))?;
 
-    // Auth component still needs to be wired into the builder. The v2
-    // real-bodies controller was deployed via the `miden client` CLI
-    // which handles Falcon-512 key gen + auth setup automatically.
-    // The cleanest path to land v5 on-chain is to run the CLI command
-    // below — the .masp + MAST roots are verified by this binary.
-    let _ = (builder, deploy);
+    println!();
+    println!("🆕  v5 controller account built");
+    println!("    id (hex)    : {}", account.id().to_hex());
+    println!("    account_type: {:?}", account.account_type());
 
-    let home = std::env::var("HOME").unwrap_or_else(|_| String::from("$HOME"));
-    println!();
-    println!("Deploy command (handles Falcon-512 auth via miden CLI):");
-    println!();
-    println!("  miden client new-account \\");
-    println!("    --account-type regular-account-immutable-code \\");
-    println!("    --packages {} \\", masp_path.display());
-    println!("    --storage-mode private \\");
-    println!("    --deploy");
-    println!();
-    println!("After deploy:");
-    println!("  - The new account id appears in {}/.miden/store.sqlite3", home);
-    println!("  - Run `deploy_v5_init` (TBD) to write basket configs to slots 3/4");
-    println!("  - atomic_deposit_note can then call into set_user_position");
-    println!("    for the per-user position storage path.");
+    if !deploy {
+        println!();
+        println!("Pass --deploy to register this account in the local store + on testnet.");
+        return Ok(());
+    }
 
-    // Wire-in note: a follow-up binary can take the new account id +
-    // sign an admin tx that calls set_target_weights / set_fees /
-    // set_user_position. That part takes ~50 lines of Rust modelled on
-    // flow_a_full.rs — the auth component setup is the missing piece
-    // here.
-    let _ = SqliteStore::new(PathBuf::from(format!("{home}/.miden/store.sqlite3")))
+    let home = std::env::var("HOME")?;
+    let store_path = PathBuf::from(format!("{home}/.miden/store.sqlite3"));
+    let keystore_path = PathBuf::from(format!("{home}/.miden/keystore"));
+
+    println!();
+    println!("Connecting miden-client (testnet)…");
+    let store = SqliteStore::new(store_path).await?;
+    let keystore = FilesystemKeyStore::new(keystore_path.clone())?;
+    let mut client = ClientBuilder::<FilesystemKeyStore>::new()
+        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .store(Arc::new(store))
+        .filesystem_keystore(keystore_path)?
+        .build()
+        .await?;
+    client.sync_state().await?;
+
+    println!("Storing private key in keystore…");
+    keystore
+        .add_key(&key_pair, account.id())
         .await
-        .ok();
-    let _ = ClientBuilder::<FilesystemKeyStore>::new();
+        .map_err(|e| format!("add_key: {e}"))?;
+
+    println!("Adding account to local store…");
+    client.add_account(&account, false).await?;
+
+    println!();
+    println!("✓ v5 controller registered");
+    println!("    id (hex)          : {}", account.id().to_hex());
+    println!("    id (bech32 hint)  : run `miden client account --show {} | head -2`", account.id().to_hex());
+    println!();
+    println!("Next: run `deploy_v5_init --controller {}` to write basket configs to slots 3/4.", account.id().to_hex());
 
     Ok(())
 }
