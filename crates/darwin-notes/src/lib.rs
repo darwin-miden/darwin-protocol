@@ -37,6 +37,13 @@ pub const ATOMIC_DEPOSIT_NOTE_MASM: &str = include_str!("../asm/atomic_deposit_n
 pub const ATOMIC_DEPOSIT_NOTE_V2_MASM: &str =
     include_str!("../asm/atomic_deposit_note_v2.masm");
 
+/// Atomic deposit note v3 — single `call.X` into v6's compound
+/// `receive_and_credit` proc instead of v2's two-call shape
+/// (receive_asset + set_user_position). Halves kernel transitions
+/// per asset consumed; relies on v6 being the consuming controller.
+pub const ATOMIC_DEPOSIT_NOTE_V3_MASM: &str =
+    include_str!("../asm/atomic_deposit_note_v3.masm");
+
 /// Self-contained atomic redeem note. Symmetric to
 /// `ATOMIC_DEPOSIT_NOTE_MASM`: the user attaches basket-token assets
 /// to the note; the script runs the redeem-value math via
