@@ -25,6 +25,18 @@ pub const REDEEM_NOTE_MASM: &str = include_str!("../asm/redeem_note.masm");
 /// basket_faucet::mint cross-account call) lands next.
 pub const ATOMIC_DEPOSIT_NOTE_MASM: &str = include_str!("../asm/atomic_deposit_note.masm");
 
+/// Atomic deposit note v2 — same as `ATOMIC_DEPOSIT_NOTE_MASM` plus
+/// a call into the v5 controller's `set_user_position` proc to write
+/// the credited basket-token amount into slot 10 (per-user positions
+/// StorageMap). Requires the v5 controller to be deployed; doesn't
+/// affect v2/v3/v4 consumers since the `receive_asset` MAST root is
+/// unchanged.
+///
+/// Storage felts layout (5 felts):
+///     [deposit_value, fee_factor, nav_scale, user_id_suffix, user_id_prefix]
+pub const ATOMIC_DEPOSIT_NOTE_V2_MASM: &str =
+    include_str!("../asm/atomic_deposit_note_v2.masm");
+
 /// Self-contained atomic redeem note. Symmetric to
 /// `ATOMIC_DEPOSIT_NOTE_MASM`: the user attaches basket-token assets
 /// to the note; the script runs the redeem-value math via
