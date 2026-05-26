@@ -119,12 +119,36 @@ end
         .as_millis();
 
     // Pull the 4 prices in PAIRS order back out into named keys.
+    // Sanity-check each result against a pair-specific USD range:
+    // stablecoins must be near $1, ETH/WBTC must be within wide
+    // realistic bounds. A reading outside the range is a publisher
+    // bug (e.g. USDT/USD on Pragma testnet currently posts at 1e6
+    // scale, ~100× below the dollar peg). We do NOT rescale here —
+    // the consumer (frontend /api/prices route) handles per-pair
+    // fallback to CoinGecko so the source provenance stays
+    // transparent. We just emit a stderr warning so operators see
+    // the upstream bug.
     let mut eth = 0.0_f64;
     let mut wbtc = 0.0_f64;
     let mut usdt = 0.0_f64;
     let mut dai = 0.0_f64;
+    let sanity_range = |k: &str| -> (f64, f64) {
+        match k {
+            "eth"  => (100.0, 100_000.0),
+            "wbtc" => (1_000.0, 1_000_000.0),
+            "usdt" | "dai" => (0.5, 2.0),
+            _      => (0.0, f64::INFINITY),
+        }
+    };
     for ((pair, key), (_, value)) in PAIRS.iter().zip(prices.iter()) {
         let v = value.unwrap_or(0.0);
+        let (lo, hi) = sanity_range(key);
+        if v <= 0.0 || v < lo || v > hi {
+            eprintln!(
+                "warning: {pair} pragma reading {v} outside sanity [{lo}, {hi}] — \
+                 consumer should fall back",
+            );
+        }
         match *key {
             "eth" => eth = v,
             "wbtc" => wbtc = v,
