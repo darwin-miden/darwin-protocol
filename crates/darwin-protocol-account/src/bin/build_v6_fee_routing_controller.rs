@@ -50,8 +50,9 @@ const MATH_NAMESPACE: &str = "darwin::math";
 // Slot 11 (fee_recipient) ID — same derivation pattern as v5 slots
 // (`hash_string_to_word("darwin::slot_11")[0..2]`). Run
 // `compute_slot_ids` and append the slot 11 row when v6 lands.
-const SLOT_11_SUFFIX: u64 = 0; // PLACEHOLDER — compute_slot_ids prints the real value
-const SLOT_11_PREFIX: u64 = 0; // PLACEHOLDER — same
+// compute_slot_ids → slot 11 "darwin::slot_11"
+const SLOT_11_SUFFIX: u64 = 7136484239511356554;
+const SLOT_11_PREFIX: u64 = 15534174776004786237;
 
 const V6_CONTROLLER_SOURCE: &str = r#"
 use darwin::math

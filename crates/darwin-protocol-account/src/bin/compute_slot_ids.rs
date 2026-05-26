@@ -7,7 +7,7 @@
 use miden_protocol::account::StorageSlotName;
 
 fn main() {
-    for i in 0..=10 {
+    for i in 0..=11 {
         let name = format!("darwin::slot_{i}");
         let slot = StorageSlotName::new(name.clone()).expect("slot name");
         let id = slot.id();
