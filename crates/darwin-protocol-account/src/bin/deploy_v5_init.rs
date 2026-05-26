@@ -19,9 +19,9 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 
 const SET_TARGET_WEIGHTS_ROOT: &str =
-    "0x3b6ea663bcd30ab0560635bed559441a71c2a98d71627608f036b43a417f9232";
+    "0x57a8ef319a2fe090f649760c4db4fdfc698496778daaea8f496cc46070e4057c";
 const SET_FEES_ROOT: &str =
-    "0x029e0fd26a948b4e1636a26929da78a2b73d12feeeea6b4c5749cb3ca90ae121";
+    "0xf2624ee2a579f81446f60cba7fdb06058c36fa2a06fc1b67accaafdd0d86e3f8";
 
 // M1 basket faucet IDs.
 const DCC_FAUCET_HEX: &str = "0x2066f2da1f91ba202af5251d39101c";

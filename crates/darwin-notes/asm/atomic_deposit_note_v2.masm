@@ -99,7 +99,7 @@ proc write_user_position
     # [key(4), value(4)] order:
     swapw                              # [key(4), value(4), pad]
 
-    call.0x8d41bee5930524a81ffc0012a2505a700d2ad837a6eb395842ccd733a14423fb
+    call.0xa017ac3e12d53bad11bfb8b4289a3bd2c4deef4c67a5209c53703dacbbe2d335
     # Stack: [old_value(4), pad]
     dropw                              # [pad]
 end

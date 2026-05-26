@@ -78,9 +78,19 @@ pub proc receive_asset
     dropw
 end
 
+# Storage slot IDs (computed off-chain via compute_slot_ids):
+#   slot 2  pool_positions   suffix=811430137917007933        prefix=4481777022490664135
+#   slot 3  target_weights   suffix=6486922254117069551       prefix=12444993101681295303
+#   slot 4  fees             suffix=16076714866331093212      prefix=10941162321188629145
+#   slot 10 user_positions   suffix=15366932551269667247      prefix=14059285908597291169
+#
+# Slot IDs in Miden are hash_string_to_word(name)[0..2], not the
+# array index, so MASM bodies that touch a storage map must use the
+# real hashed (suffix, prefix) felts at each call site.
+
 # v3-compatible: read pool position from slot 2.
 pub proc read_pool_position
-    push.0 push.2
+    push.4481777022490664135 push.811430137917007933
     exec.active_account::get_map_item
 end
 
@@ -94,38 +104,26 @@ end
 # ---------------------------------------------------------------------
 
 #! Read the target-weight word for a basket.
-#! Stack on entry:   [basket_id_word(4), pad(12)]
-#! Stack on exit:    [weights_word(4) = (w0,w1,w2,_), pad]
 pub proc get_target_weights
-    push.0 push.3                            # slot 3 — target_weights map
+    push.12444993101681295303 push.6486922254117069551
     exec.active_account::get_map_item
 end
 
 #! Read the fee word for a basket.
-#! Stack on entry:   [basket_id_word(4), pad(12)]
-#! Stack on exit:    [fees_word(4) = (mint, redeem, mgmt, _), pad]
 pub proc get_fees
-    push.0 push.4                            # slot 4 — fees map
+    push.10941162321188629145 push.16076714866331093212
     exec.active_account::get_map_item
 end
 
 #! Admin: write the target-weights word for a basket.
-#! Stack on entry:   [basket_id_word(4), weights_word(4), pad(8)]
-#! Stack on exit:    [old_value_word(4), pad]
-#!
-#! Authenticated via `native_account::set_map_item` — the controller
-#! tx itself must be the executing account, so this is only callable
-#! by an admin tx signed for the controller account.
 pub proc set_target_weights
-    push.0 push.3                            # slot 3
+    push.12444993101681295303 push.6486922254117069551
     exec.native_account::set_map_item
 end
 
 #! Admin: write the fees word for a basket.
-#! Stack on entry:   [basket_id_word(4), fees_word(4), pad(8)]
-#! Stack on exit:    [old_value_word(4), pad]
 pub proc set_fees
-    push.0 push.4
+    push.10941162321188629145 push.16076714866331093212
     exec.native_account::set_map_item
 end
 
@@ -138,7 +136,7 @@ end
 #!   user_basket_key = (user_id_suffix, user_id_prefix, basket_id_suffix, basket_id_prefix)
 #! Stack on exit:    [position_word(4)]
 pub proc get_user_position
-    push.0 push.10                           # slot 10 — user_positions map
+    push.14059285908597291169 push.15366932551269667247
     exec.active_account::get_map_item
 end
 
@@ -154,7 +152,7 @@ end
 #! juggling needed for in-MASM read-modify-write, and matches how
 #! `set_target_weights` / `set_fees` operate.
 pub proc set_user_position
-    push.0 push.10                           # slot 10 — user_positions map
+    push.14059285908597291169 push.15366932551269667247
     exec.native_account::set_map_item
 end
 "#;
