@@ -22,3 +22,8 @@ target
 
 # cargo-miden output
 crates/darwin-controller-pkg/target/
+
+# Miden Account Serialized Package — controller artifacts produced by
+# crates/darwin-protocol-account/src/bin/build_*_controller.rs; treat
+# as build output, not source.
+*.masp
