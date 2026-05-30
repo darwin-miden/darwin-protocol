@@ -40,6 +40,22 @@ name = "oracle_query_real"
 path = "src/bin/oracle_query_real.rs"
 required-features = ["pragma-live"]
 
+# These two binaries pull `darwin_oracle_adapter::pragma_live` + `anyhow`,
+# both of which only resolve under the `pragma-live` feature. Without
+# the explicit declaration cargo auto-discovers them at default
+# features and the fresh-clone build fails with E0432/E0433. The
+# pragma_prices_json binary is also what the frontend README tells
+# reviewers to build for live NAV.
+[[bin]]
+name = "pragma_prices_json"
+path = "src/bin/pragma_prices_json.rs"
+required-features = ["pragma-live"]
+
+[[bin]]
+name = "nav_pro_rata"
+path = "src/bin/nav_pro_rata.rs"
+required-features = ["pragma-live"]
+
 [dev-dependencies]
 miden-vm = { workspace = true }
 miden-stdlib = "0.19"
