@@ -1,5 +1,5 @@
 //! Pro-rata NAV calculator -- "Private Account calculates pro-rata
-//! share using Pragma Oracle prices" (Flow C verbatim, grant §M3 D2).
+//! share using Pragma Oracle prices" (Flow C verbatim).
 //!
 //! Off-chain mirror of the math the controller's compute_redeem_amount
 //! proc runs on-chain *inside* the private account. We can't read the

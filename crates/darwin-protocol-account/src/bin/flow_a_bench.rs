@@ -3,7 +3,7 @@
 //! Same recipe as `flow_a_full`: build the atomic deposit note,
 //! emit it from the user wallet, have the v2 controller consume it.
 //! The difference is the wrapping `Instant::now()` per stage so the
-//! M3 D2 grant targets can be measured directly:
+//! performance targets can be measured directly:
 //!
 //!   compile  - assemble the note script + darwin::math library
 //!   execute  - run the tx locally (no proof yet)
@@ -169,7 +169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let consume_dur = consume_start.elapsed();
     println!("consume   {} (full controller tx, end-to-end)", pretty(consume_dur));
 
-    // -- Roll-up + grant target checks --------------------------------
+    // -- Roll-up + performance checks --------------------------------
     let deposit_total = compile_dur + build_dur + exec_dur + prove_dur + submit_dur + apply_dur;
     let proof_only    = prove_dur;
     let e2e_with_consume = setup_dur + deposit_total + consume_dur;
