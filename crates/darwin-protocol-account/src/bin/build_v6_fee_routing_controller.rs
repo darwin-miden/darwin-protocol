@@ -1,7 +1,7 @@
 //! Build a `.masp` for the v6 Darwin Protocol Account controller.
 //!
 //! v6 = v5 + the two pieces TODO 3 (mint_to_user atomic chain) and
-//! TODO 4 (fee routing) of the M1/M2/M3 audit deferred.
+//! TODO 4 (fee routing) from prior audit cycles.
 //!
 //! Specifically:
 //!
