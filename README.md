@@ -25,18 +25,31 @@ darwin-protocol/
 
 ## Status
 
-This is a **scaffold**. The Rust crates compile and pass their unit tests today. The MASM procedure bodies are intentionally stubbed pending the Miden v0.14 toolchain integration — they document the contract surface and contain `# TODO` markers for every body still to be implemented.
+Live on Miden testnet. The Rust crates compile, unit tests pass, and
+the protocol's user-facing flows (atomic deposit, redeem, Flow B
+rebalance trigger, Flow C symmetric redeem) are exercised end-to-end
+on the public Miden testnet against the v6 fee-routing controller
+(`0x2a3ea0a268d97b80497d6a966e3141`). See
+[`darwin-docs/status.md`](https://github.com/darwin-miden/darwin-docs/blob/main/docs/status.md)
+for the live tx hashes per flow.
 
-The workspace `Cargo.toml` includes commented-out git dependencies for `miden-base`, `miden-client`, `miden-assembly`, `miden-agglayer` (all pinned to the `next` branch of `0xMiden/protocol`). Uncomment them in step with installing the Miden toolchain locally — see the Getting Started guide in `darwin-docs`.
+The MASM bodies live under `crates/*/asm/` as canonical source.
+Controller variants (v3/v4/v5/v6) are built as Miden packages by
+the `build_v*_controller` binaries in
+`crates/darwin-protocol-account/src/bin/`; running e.g.
+`cargo run --release --bin build_v6_fee_routing_controller` emits a
+`.masp` artifact the deployment scripts then push to the testnet.
 
 ## Build
 
 ```bash
-cargo build
-cargo test
-```
+cargo build --release           # core crates + atomic-note assembly
+cargo test --lib                # workspace unit tests
 
-Once the Miden toolchain is enabled, the MASM in `crates/*/asm/` will be compiled at build time via the `miden-assembly` crate's `build.rs` hook (to be added).
+# live Pragma read (requires the pragma-live feature):
+cargo run --release --features pragma-live \
+  -p darwin-protocol-account --bin oracle_query_real
+```
 
 ## License
 
