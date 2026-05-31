@@ -1,7 +1,7 @@
 //! Build a `.masp` for the v5 Darwin Protocol Account controller.
 //!
 //! v5 = v4 + the two storage layers the proposal §M1.1/M1.2 call for
-//! but that earlier controllers deferred to M4:
+//! but that earlier controllers deferred to a future iteration:
 //!
 //!   1.4a — token weights / fee config in StorageMap on Miden
 //!          (slot 3: target_weights, slot 4: fees). No more

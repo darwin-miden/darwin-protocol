@@ -27,7 +27,7 @@
 //! with basket configs. Redeploying invalidates the init tx and the
 //! atomic_deposit_note_v2 MAST root reference. v6 lands when we're
 //! ready to wire fee routing + the compound credit proc into the
-//! atomic notes — that's the next session's M4 work.
+//! atomic notes — that's the next session's a future iteration work.
 //!
 //! Usage:
 //!     cargo run -p darwin-protocol-account \

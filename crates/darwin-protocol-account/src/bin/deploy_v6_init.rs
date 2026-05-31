@@ -27,7 +27,7 @@ const SET_FEE_RECIPIENT_ROOT: &str =
 
 // Slot 11 (fee_recipient): set to the relay wallet for the M3 demo —
 // the relay is already authoritative on the L1↔L2 path for ETH users
-// so swept fees compound on its vault. M4 swaps this to a dedicated
+// so swept fees compound on its vault. a future iteration swaps this to a dedicated
 // treasury account.
 const FEE_RECIPIENT_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
 
