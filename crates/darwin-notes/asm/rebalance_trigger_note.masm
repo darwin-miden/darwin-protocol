@@ -1,4 +1,4 @@
-# Flow B trigger note — M2 Track 3.
+# Flow B trigger note.
 #
 # Spec: darwin-docs/m1-architecture-spec.md §6.4 (Flow B).
 #
@@ -14,7 +14,7 @@
 #      slot-3 storage ("last rebalance timestamp") via the kernel's
 #      `set_item` primitive and returns.
 #
-# The first M2 iteration stops there — proves the rebalance trigger
+# The initial implementation stops there — proves the rebalance trigger
 # path lands on-chain and the controller can record state changes
 # driven by a note. The follow-up adds the controller emitting
 # per-asset swap notes targeting a (mock) DEX account, which is the
@@ -37,7 +37,7 @@ const BASKET_ID = 1
 # Demo timestamp. Production caller reads block.timestamp off-chain
 # and passes it via note inputs. (Inside Miden the kernel exposes the
 # current block timestamp via miden::tx::get_block_timestamp; using
-# note inputs keeps this script tightly bounded for the M2 demo.)
+# note inputs keeps this script tightly bounded for the demo.)
 const REBALANCE_TS = 1747500000
 
 begin

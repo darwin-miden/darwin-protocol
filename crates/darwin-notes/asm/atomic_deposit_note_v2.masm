@@ -1,6 +1,6 @@
 # Atomic DepositNote v2 — atomic_deposit_note + per-user storage write.
 #
-# Adds the M1.4b leg: after the asset lands in the v5 controller's
+# Adds the second-phase leg: after the asset lands in the v5 controller's
 # vault, the note calls `set_user_position` to write the credited
 # basket-token amount into the controller's slot-10 StorageMap.
 # That makes the v5 controller the authoritative ledger for per-user

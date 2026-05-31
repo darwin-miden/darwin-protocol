@@ -30,7 +30,7 @@ proc drain_assets_and_credit
     drop drop
     push.103 mem_load                       # user_id_suffix
     push.104 mem_load                       # user_id_prefix
-    push.0 push.0                           # basket_id pad (M3)
+    push.0 push.0                           # basket_id pad
     # Stack: [basket_id_prefix=0, basket_id_suffix=0,
     #         user_id_prefix, user_id_suffix, ...]
 

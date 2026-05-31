@@ -19,7 +19,7 @@ license = "MIT"
 repository = "https://github.com/darwin-miden/darwin-protocol"
 
 [workspace.dependencies]
-darwin-baskets = { git = "ssh://git@github.com/darwin-miden/darwin-baskets.git" }
+darwin-baskets = { git = "https://github.com/darwin-miden/darwin-baskets.git" }
 
 # Miden dependencies. Aligned on the 0.22 / 0.14 line: this is the
 # version stack that miden-client 0.14 (the deployment client) uses

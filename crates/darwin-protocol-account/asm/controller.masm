@@ -6,7 +6,7 @@
 # miden-base, miden-stdlib).
 #
 # All `# TODO` markers indicate procedure bodies to be implemented during
-# the M1 protocol-build phase. They intentionally do not currently compile
+# the initial protocol-build phase. They intentionally do not currently compile
 # because the Miden assembler is not yet enabled in this crate.
 
 use.miden::contracts::wallets::basic
