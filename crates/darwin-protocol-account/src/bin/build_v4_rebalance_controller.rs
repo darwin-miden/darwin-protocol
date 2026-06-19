@@ -149,10 +149,7 @@ fn main() {
         }
     }
 
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v4-rebalance",
-        [AccountType::RegularAccountImmutableCode],
-    )
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v4-rebalance")
     .with_description(
         "Darwin Protocol Account controller v4 (rebalance-aware). \
          Adds execute_rebalance_step entry point called by Flow B \

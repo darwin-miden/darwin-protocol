@@ -21,22 +21,23 @@ repository = "https://github.com/darwin-miden/darwin-protocol"
 [workspace.dependencies]
 darwin-baskets = { git = "https://github.com/darwin-miden/darwin-baskets.git" }
 
-# Miden dependencies. Aligned on the 0.22 / 0.14 line: this is the
-# version stack that miden-client 0.14 (the deployment client) uses
-# under the hood, via miden-protocol 0.14.5 → miden-assembly 0.22 +
-# miden-core-lib 0.22. Choosing 0.22 over 0.23 lets the math libraries
-# and the AccountComponent share a single MAST format, so the bytecode
-# Darwin builds locally is directly deployable through miden-client
-# without any cross-version translation.
-miden-assembly   = "0.22"
-miden-core-lib   = "0.22"
-miden-vm         = { version = "0.22", features = ["std"] }
+# Miden dependencies — v0.15 line. Devnet went live with these on
+# 2026-06-19; Testnet ships the same versions the following week. The
+# assembly / core-lib / vm crates moved to 0.23 (MAST wire format
+# bumped 0.0.2 → 0.0.3, no .masl/.masp round-trip from 0.14). The
+# client + protocol + tx + standards moved to 0.15; the older `miden-
+# objects` / `miden-base` / `miden-lib` line stayed at 0.12 (the
+# foundational types didn't break, only the higher-level account /
+# note / faucet APIs did).
+miden-assembly   = "0.23"
+miden-core-lib   = "0.23"
+miden-vm         = { version = "0.23", features = ["std"] }
 miden-base       = "0.12"
 miden-objects    = "0.12"
 miden-lib        = "0.12"
-miden-protocol   = "0.14"
-miden-client     = "0.14"
-miden-tx         = "0.14"
+miden-protocol   = "0.15"
+miden-client     = "0.15"
+miden-tx         = "0.15"
 
 # miden-agglayer is not on crates.io yet (tagged v0.14-alpha in the
 # `next` branch of 0xMiden/protocol). Enable via git when we wire the

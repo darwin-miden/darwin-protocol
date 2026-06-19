@@ -20,11 +20,17 @@ pub use storage::StorageLayout;
 /// surface uses. Keeping a single re-export point here makes future
 /// migrations across miden-base / miden-objects breaking changes
 /// easier to track.
+///
+/// v0.15: `AccountType` moved over to `miden_protocol::account` (it now
+/// names the storage mode `{ Private, Public }` instead of the old kind
+/// enum like `RegularAccountImmutableCode` / `FungibleFaucet`). We
+/// re-export from miden_protocol so call sites that say
+/// `miden::AccountType::Public` resolve correctly.
 pub mod miden {
     pub use miden_objects::account::{
-        Account, AccountBuilder, AccountId, AccountStorageMode, AccountType, SlotName, StorageMap,
-        StorageSlot,
+        Account, AccountBuilder, AccountId, SlotName, StorageMap, StorageSlot,
     };
+    pub use miden_protocol::account::AccountType;
 }
 
 /// Re-exports of the basket manifest types this controller depends on.
@@ -103,7 +109,7 @@ mod tests {
         // Smoke test: the re-export module is wired up and the types
         // resolve. The actual deployment binary uses these directly.
         let _: Option<miden::AccountType> = None;
-        let _: Option<miden::AccountStorageMode> = None;
+        let _: Option<miden::AccountType> = None;
     }
 
     #[test]

@@ -97,17 +97,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //    stack via inputs; the script body computes mint_amount.
     let mut serial_num_bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut serial_num_bytes);
-    let serial_num = miden_client::Word::try_from(
-        serial_num_bytes
-            .chunks_exact(8)
-            .map(|chunk| {
-                let mut buf = [0u8; 8];
-                buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf))
-            })
-            .collect::<Vec<_>>()
-            .as_slice(),
-    )?;
+    // v0.15: `Felt::new` returns `Result` so the Goldilocks check happens
+    // at construction. Mask the raw u64 to stay under p - 1 (= 2^64 -
+    // 2^32) before constructing so the random bytes can never overflow.
+    const GOLDILOCKS_SAFE_MASK: u64 = 0xFFFF_FFFE_FFFF_FFFF;
+    let felts: Vec<miden_client::Felt> = serial_num_bytes
+        .chunks_exact(8)
+        .map(|chunk| {
+            let mut buf = [0u8; 8];
+            buf.copy_from_slice(chunk);
+            let v = u64::from_le_bytes(buf) & GOLDILOCKS_SAFE_MASK;
+            miden_client::Felt::new(v).expect("masked u64 is always a valid Goldilocks felt")
+        })
+        .collect();
+    let serial_num = miden_client::Word::try_from(felts.as_slice())?;
     let storage = NoteStorage::new(vec![])?;
     let recipient = NoteRecipient::new(serial_num, note_script.clone(), storage);
     let note = Note::new(assets, metadata, recipient);

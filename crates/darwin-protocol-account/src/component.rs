@@ -70,6 +70,6 @@ impl DarwinBasketController {
     pub fn account_component_stub(&self) -> Result<AccountComponent, AccountError> {
         let storage_slots: Vec<StorageSlot> = (0..10).map(|_| StorageSlot::empty_value()).collect();
         AccountComponent::compile(CONTROLLER_V0_19_MASM, Assembler::default(), storage_slots)
-            .map(|c| c.with_supported_type(AccountType::RegularAccountImmutableCode))
+            .map(|c| c)
     }
 }

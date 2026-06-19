@@ -66,10 +66,7 @@ fn main() {
         }
     }
 
-    let metadata = AccountComponentMetadata::new(
-        "darwin-mock-oracle",
-        [AccountType::RegularAccountImmutableCode],
-    )
+    let metadata = AccountComponentMetadata::new("darwin-mock-oracle")
     .with_description(
         "Mock Pragma-style oracle. Mirrors get_median / get_entry. \
          Used to demonstrate cross-account oracle calls from Darwin \

@@ -92,10 +92,7 @@ end
 
     // 3. Wrap as a miden-protocol 0.14 AccountComponent. This is the
     //    type miden-client::Client::add_account takes via AccountBuilder.
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller",
-        [AccountType::RegularAccountImmutableCode],
-    );
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller");
 
     let storage_slots: Vec<StorageSlot> = (0..10)
         .map(|i| {

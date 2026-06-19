@@ -29,7 +29,7 @@
 //!    basket faucet with the AggLayer bridge (requires bridge-admin
 //!    coordination; not done by this script).
 
-use darwin_protocol_account::miden::{AccountStorageMode, AccountType};
+use darwin_protocol_account::miden::{AccountType};
 use darwin_protocol_account::{DarwinBasketController, StorageLayout};
 
 fn main() {
@@ -102,22 +102,22 @@ fn print_planned_accounts() {
     println!(
         "  - 1x Darwin Protocol Account per basket  (type={:?}, storage_mode={:?})",
         AccountType::RegularAccountImmutableCode,
-        AccountStorageMode::Private,
+        AccountType::Private,
     );
     println!(
         "  - 1x basket-token FungibleFaucet per basket  (type={:?}, storage_mode={:?})",
         AccountType::FungibleFaucet,
-        AccountStorageMode::Public,
+        AccountType::Public,
     );
     println!(
         "  - 4x custom asset faucets (dETH, dWBTC, dUSDT, dDAI)  (type={:?}, storage_mode={:?})",
         AccountType::FungibleFaucet,
-        AccountStorageMode::Public,
+        AccountType::Public,
     );
     println!(
         "  - 1x oracle adapter  (type={:?}, storage_mode={:?})",
         AccountType::RegularAccountImmutableCode,
-        AccountStorageMode::Public,
+        AccountType::Public,
     );
 }
 

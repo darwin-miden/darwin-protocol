@@ -143,7 +143,7 @@ end
     let component =
         AccountComponent::compile(controller_source, component_assembler, storage_slots)
             .expect("AccountComponent compiles with stdlib u64 div + darwin::math_v019")
-            .with_supported_type(AccountType::RegularAccountImmutableCode);
+            ;
 
     println!(
         "✓ AccountComponent built on the 0.19 path with real u64 division. \

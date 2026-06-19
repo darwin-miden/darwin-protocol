@@ -215,10 +215,7 @@ fn main() {
         }
     }
 
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v5-full-storage",
-        [AccountType::RegularAccountImmutableCode],
-    )
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v5-full-storage")
     .with_description(
         "Darwin Protocol Account controller v5 (full storage). \
          Adds target_weights (slot 3) + fees (slot 4) on-Miden basket \

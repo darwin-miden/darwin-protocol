@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use miden_client::account::component::AccountComponent;
 use miden_client::account::{
-    AccountBuilder, AccountStorageMode, AccountType, StorageSlot,
+    AccountBuilder, AccountType, StorageSlot,
 };
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::{FilesystemKeyStore, Keystore};
@@ -107,10 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Build the AccountComponent + Account.
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v7-fee-routing",
-        [AccountType::RegularAccountImmutableCode],
-    );
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v7-fee-routing");
     // Slots 2 (pool_positions), 3 (target_weights), 4 (fees), and
     // 10 (user_positions) are StorageMaps. The rest are scalar values.
     let map_slots = [2usize, 3, 4, 10];
@@ -149,8 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     rand::thread_rng().fill_bytes(&mut seed);
 
     let account = AccountBuilder::new(seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .storage_mode(AccountType::Public)
         .with_auth_component(auth_component)
         .with_component(component)
         .build()
