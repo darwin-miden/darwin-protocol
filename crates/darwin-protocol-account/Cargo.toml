@@ -30,10 +30,9 @@ miden-core-lib = { workspace = true }
 [features]
 default = []
 pragma-live = ["dep:darwin-oracle-adapter", "dep:anyhow"]
-# v0.15 migration WIP. These binaries hit v0.15 API shape changes
-# (NoteMetadata::new arity, Account::account_type getter rename,
-# AccountType kind enum gone) that need hands-on porting. Gated so
-# the workspace builds clean until we get to them.
+# v0.15 migration: previously used to gate broken bins. All bins now
+# port cleanly so the feature is a no-op — kept as a stable knob for
+# scripts that already reference it.
 v015-port-wip = []
 
 [dependencies.anyhow]
@@ -65,59 +64,3 @@ required-features = ["pragma-live"]
 miden-vm = { workspace = true }
 miden-stdlib = "0.19"
 darwin-notes = { path = "../darwin-notes" }
-
-# v0.15 migration WIP: these binaries hit v0.15 API shape changes
-# (NoteMetadata::new arity, Account::account_type getter rename,
-# AccountType kind enum gone) that need hands-on porting. Gated behind
-# a feature that's never enabled by any consumer so the workspace
-# builds clean until we get to them.
-
-[[bin]]
-name              = "darwin_doctor"
-path              = "src/bin/darwin_doctor.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "deploy_atomic_flow_a"
-path              = "src/bin/deploy_atomic_flow_a.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "deploy_m1"
-path              = "src/bin/deploy_m1.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "deploy_v5"
-path              = "src/bin/deploy_v5.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "deploy_v6"
-path              = "src/bin/deploy_v6.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "deploy_v7"
-path              = "src/bin/deploy_v7.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "flow_a_bench"
-path              = "src/bin/flow_a_bench.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "flow_a_full"
-path              = "src/bin/flow_a_full.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "flow_b_demo"
-path              = "src/bin/flow_b_demo.rs"
-required-features = ["v015-port-wip"]
-
-[[bin]]
-name              = "flow_c_full"
-path              = "src/bin/flow_c_full.rs"
-required-features = ["v015-port-wip"]

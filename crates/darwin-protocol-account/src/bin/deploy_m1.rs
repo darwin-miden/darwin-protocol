@@ -98,25 +98,27 @@ fn print_layout() {
 }
 
 fn print_planned_accounts() {
+    // v0.15: the old `AccountType::{RegularAccountImmutableCode,
+    // FungibleFaucet}` kind enum is gone — account kind is now derived
+    // from the bundled components, and `AccountType` itself names the
+    // storage mode `{Private, Public}`. The original m1 prints
+    // distinguished kind vs storage mode side-by-side; collapse the
+    // narrative to just storage mode under v0.15.
     println!("Accounts to deploy on Miden testnet:");
     println!(
-        "  - 1x Darwin Protocol Account per basket  (type={:?}, storage_mode={:?})",
-        AccountType::RegularAccountImmutableCode,
+        "  - 1x Darwin Protocol Account per basket  (storage_mode={:?})",
         AccountType::Private,
     );
     println!(
-        "  - 1x basket-token FungibleFaucet per basket  (type={:?}, storage_mode={:?})",
-        AccountType::FungibleFaucet,
+        "  - 1x basket-token FungibleFaucet per basket  (storage_mode={:?})",
         AccountType::Public,
     );
     println!(
-        "  - 4x custom asset faucets (dETH, dWBTC, dUSDT, dDAI)  (type={:?}, storage_mode={:?})",
-        AccountType::FungibleFaucet,
+        "  - 4x custom asset faucets (dETH, dWBTC, dUSDT, dDAI)  (storage_mode={:?})",
         AccountType::Public,
     );
     println!(
-        "  - 1x oracle adapter  (type={:?}, storage_mode={:?})",
-        AccountType::RegularAccountImmutableCode,
+        "  - 1x oracle adapter  (storage_mode={:?})",
         AccountType::Public,
     );
 }

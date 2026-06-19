@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let assets = NoteAssets::new(vec![Asset::Fungible(fungible)])?;
 
     // 5. Metadata: public note, sender = user wallet, default tag.
-    let metadata = NoteMetadata::new(user_wallet, NoteType::Public);
+    let metadata = miden_protocol::note::PartialNoteMetadata::new(user_wallet, NoteType::Public);
 
     // 6. Recipient: random serial num + the atomic script + empty storage.
     //    Storage carries note inputs (deposit_value, nav, fee_factor).

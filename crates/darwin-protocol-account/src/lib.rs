@@ -133,14 +133,12 @@ mod tests {
 
     #[test]
     fn stub_account_component_compiles() {
-        // Verifies the v0.14-line controller MASM compiles via
-        // miden-objects' bundled Assembler and yields an
-        // AccountComponent ready for AccountBuilder.
+        // v0.15: account kind is derived from the bundled components and
+        // `supported_types` no longer returns the old kind enum
+        // (`RegularAccountImmutableCode`, `FungibleFaucet`, …) — there's
+        // nothing to assert about it. Compilation alone is the smoke.
         let manifest = darwin_baskets::core_crypto();
         let controller = DarwinBasketController::from_manifest(&manifest);
-        let component = controller.account_component_stub().expect("compiles");
-        assert!(component
-            .supported_types()
-            .contains(&miden::AccountType::RegularAccountImmutableCode));
+        let _component = controller.account_component_stub().expect("compiles");
     }
 }

@@ -95,17 +95,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .ok_or_else(|| format!("user wallet {USER_WALLET_HEX} not in store after sync"))?;
     let faucet = pick_redeem_faucet(&user_account)?;
+    // v0.15: vault.get_balance takes AssetVaultKey (build via
+    // FungibleAsset) and returns Result<AssetAmount>. Convert to u64
+    // at the boundary so the println formats the number.
+    let display_balance: u64 = u64::from(
+        user_account
+            .vault()
+            .get_balance(FungibleAsset::new(faucet, 0)?.vault_key())?,
+    );
     println!(
         "Using faucet {} (balance {} ≥ burn {})",
         faucet.to_hex(),
-        user_account.vault().get_balance(faucet)?,
+        display_balance,
         BURN_AMOUNT,
     );
     let assets = NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(
         faucet,
         BURN_AMOUNT,
     )?)])?;
-    let metadata = NoteMetadata::new(user_wallet, NoteType::Public);
+    let metadata = miden_protocol::note::PartialNoteMetadata::new(user_wallet, NoteType::Public);
 
     let mut serial_num_bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut serial_num_bytes);
@@ -115,7 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|chunk| {
                 let mut buf = [0u8; 8];
                 buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf).expect("bounded") & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
+                miden_client::Felt::new(u64::from_le_bytes(buf) & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
             })
             .collect::<Vec<_>>()
             .as_slice(),
@@ -183,9 +191,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn pick_redeem_faucet(
     user_account: &miden_client::account::Account,
 ) -> Result<AccountId, Box<dyn std::error::Error>> {
+    // v0.15: vault.get_balance returns Result<AssetAmount>. Pull
+    // through a tiny helper so the rest of the lookup keeps comparing
+    // u64s.
+    fn balance_of(
+        account: &miden_client::account::Account,
+        faucet: AccountId,
+    ) -> u64 {
+        FungibleAsset::new(faucet, 0)
+            .map(|fa| fa.vault_key())
+            .ok()
+            .and_then(|k| account.vault().get_balance(k).ok())
+            .map(u64::from)
+            .unwrap_or(0)
+    }
+
     if let Ok(forced) = std::env::var("DARWIN_FAUCET_HEX") {
         let id = AccountId::from_hex(forced.trim())?;
-        let bal = user_account.vault().get_balance(id)?;
+        let bal = balance_of(user_account, id);
         if bal < BURN_AMOUNT {
             return Err(format!(
                 "DARWIN_FAUCET_HEX={forced} but wallet balance is {bal} < {BURN_AMOUNT}",
@@ -196,7 +219,7 @@ fn pick_redeem_faucet(
     }
 
     let hint = AccountId::from_hex(DEFAULT_FAUCET_HINT_HEX)?;
-    if user_account.vault().get_balance(hint).unwrap_or(0) >= BURN_AMOUNT {
+    if balance_of(user_account, hint) >= BURN_AMOUNT {
         return Ok(hint);
     }
 
@@ -204,7 +227,7 @@ fn pick_redeem_faucet(
         .vault()
         .assets()
         .filter_map(|a| match a {
-            Asset::Fungible(fa) => Some((fa.faucet_id(), fa.amount())),
+            Asset::Fungible(fa) => Some((fa.faucet_id(), u64::from(fa.amount()))),
             Asset::NonFungible(_) => None,
         })
         .filter(|(_, amt)| *amt >= BURN_AMOUNT)

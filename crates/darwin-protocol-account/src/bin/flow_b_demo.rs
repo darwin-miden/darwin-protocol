@@ -86,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Flow B trigger note carries zero assets.
     let assets = NoteAssets::new(vec![])?;
-    let metadata = NoteMetadata::new(user_wallet, NoteType::Public);
+    let metadata = miden_protocol::note::PartialNoteMetadata::new(user_wallet, NoteType::Public);
 
     let mut serial_num_bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut serial_num_bytes);
@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|chunk| {
                 let mut buf = [0u8; 8];
                 buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf).expect("bounded") & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
+                miden_client::Felt::new(u64::from_le_bytes(buf) & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
             })
             .collect::<Vec<_>>()
             .as_slice(),

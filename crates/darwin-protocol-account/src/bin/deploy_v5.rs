@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("🆕  v5 controller account built");
     println!("    id (hex)    : {}", account.id().to_hex());
-    println!("    account_type: {:?}", account.account_type());
+    println!("    account_type: {:?}", account.id().account_type());
 
     if !deploy {
         println!();
