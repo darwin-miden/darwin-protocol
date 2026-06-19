@@ -30,13 +30,36 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
-// v2 real-bodies controller: exposes `receive_asset` so the atomic
-// note can drain its vault into the controller. v1 was at
-// 0x171f46fecf1bca8005ae068a8dfe77 (no receive_asset).
-const REAL_BODIES_CONTROLLER_HEX: &str = "0xa25aa0b00007688024b74b05a52aab";
-const DETH_FAUCET_HEX: &str = "0xa095d9b3831e96206ff70c2218a6a9";
+// v0.14 testnet defaults.
+const USER_WALLET_HEX_V014: &str = "0xed3cd5befa3207805f8529207cfc0d";
+// v2 real-bodies controller on testnet: exposes `receive_asset`.
+const CONTROLLER_HEX_V014: &str = "0xa25aa0b00007688024b74b05a52aab";
+const DETH_FAUCET_HEX_V014: &str = "0xa095d9b3831e96206ff70c2218a6a9";
+
+// v0.15 Devnet defaults — operator wallet, v7 controller, DETH faucet
+// deployed 2026-06-20.
+const USER_WALLET_HEX_V015: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_V015: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DETH_FAUCET_HEX_V015: &str = "0xc2c923560dc3cb114ec24ab2291a05";
+
 const DEPOSIT_AMOUNT: u64 = 100;
+
+fn is_devnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("devnet"))
+        .unwrap_or(false)
+}
+
+fn resolve_hex(env_key: &str, devnet: &str, testnet: &str) -> String {
+    std::env::var(env_key).unwrap_or_else(|_| {
+        if is_devnet() {
+            devnet.into()
+        } else {
+            testnet.into()
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -66,14 +89,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .assemble_library([math_module])?;
     // Use the TransactionKernel assembler so the note's
     // `use miden::protocol::active_note` etc. resolve.
+    //
+    // v0.15 hot-patch: the .masm file hardcodes the v0.14 receive_asset
+    // MAST root (0x75f638c6…). Under Devnet we substitute it for the
+    // v0.15 root (0x6170fd6d…) so the call resolves against the
+    // v7 controller's procedure surface.
+    const RECEIVE_ASSET_V014: &str =
+        "0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb";
+    const RECEIVE_ASSET_V015: &str =
+        "0x6170fd6d682d91777b551fd866258f43cc657f1291f8f071500f4e56e9c153da";
+    let masm_source = if is_devnet() {
+        darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM
+            .replace(RECEIVE_ASSET_V014, RECEIVE_ASSET_V015)
+    } else {
+        darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM.to_string()
+    };
     let program = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())?
-        .assemble_program(darwin_notes::ATOMIC_DEPOSIT_NOTE_MASM)?;
+        .assemble_program(masm_source.as_str())?;
     let note_script = NoteScript::new(program);
 
-    let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
-    let controller = AccountId::from_hex(REAL_BODIES_CONTROLLER_HEX)?;
-    let deth_faucet = AccountId::from_hex(DETH_FAUCET_HEX)?;
+    let user_wallet_hex = resolve_hex(
+        "DARWIN_USER_WALLET_HEX",
+        USER_WALLET_HEX_V015,
+        USER_WALLET_HEX_V014,
+    );
+    let controller_hex = resolve_hex(
+        "DARWIN_CONTROLLER_HEX",
+        CONTROLLER_HEX_V015,
+        CONTROLLER_HEX_V014,
+    );
+    let deth_faucet_hex = resolve_hex(
+        "DARWIN_DETH_FAUCET_HEX",
+        DETH_FAUCET_HEX_V015,
+        DETH_FAUCET_HEX_V014,
+    );
+    let user_wallet = AccountId::from_hex(&user_wallet_hex)?;
+    let controller = AccountId::from_hex(&controller_hex)?;
+    let deth_faucet = AccountId::from_hex(&deth_faucet_hex)?;
     let assets = NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(
         deth_faucet,
         DEPOSIT_AMOUNT,

@@ -31,10 +31,35 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
-const REAL_BODIES_CONTROLLER_HEX: &str = "0x171f46fecf1bca8005ae068a8dfe77";
-const DETH_FAUCET_HEX: &str = "0xa095d9b3831e96206ff70c2218a6a9";
+// v0.14 testnet defaults — used when MIDEN_NETWORK is unset.
+const USER_WALLET_HEX_V014: &str = "0xed3cd5befa3207805f8529207cfc0d";
+const CONTROLLER_HEX_V014: &str = "0x171f46fecf1bca8005ae068a8dfe77";
+const DETH_FAUCET_HEX_V014: &str = "0xa095d9b3831e96206ff70c2218a6a9";
+
+// v0.15 Devnet defaults — captured from deploy_devnet_faucet +
+// create_devnet_operator_wallet + deploy_v7 output on 2026-06-20.
+const USER_WALLET_HEX_V015: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_V015: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DETH_FAUCET_HEX_V015: &str = "0xc2c923560dc3cb114ec24ab2291a05";
+
 const DEPOSIT_AMOUNT: u64 = 100;
+
+fn is_devnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("devnet"))
+        .unwrap_or(false)
+}
+
+fn resolve_hex(env_key: &str, devnet_default: &str, testnet_default: &str) -> String {
+    std::env::var(env_key).unwrap_or_else(|_| {
+        if is_devnet() {
+            devnet_default.into()
+        } else {
+            testnet_default.into()
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -78,10 +103,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let note_script = NoteScript::new(note_program);
     println!("Atomic deposit NoteScript root: {:?}", note_script.root());
 
-    // 3. Resolve account IDs.
-    let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
-    let controller = AccountId::from_hex(REAL_BODIES_CONTROLLER_HEX)?;
-    let deth_faucet = AccountId::from_hex(DETH_FAUCET_HEX)?;
+    // 3. Resolve account IDs. Overridable via env vars
+    //    DARWIN_USER_WALLET_HEX / DARWIN_CONTROLLER_HEX /
+    //    DARWIN_DETH_FAUCET_HEX, defaulting to network-appropriate
+    //    constants (Devnet if MIDEN_NETWORK=devnet, else testnet).
+    let user_wallet_hex = resolve_hex(
+        "DARWIN_USER_WALLET_HEX",
+        USER_WALLET_HEX_V015,
+        USER_WALLET_HEX_V014,
+    );
+    let controller_hex = resolve_hex(
+        "DARWIN_CONTROLLER_HEX",
+        CONTROLLER_HEX_V015,
+        CONTROLLER_HEX_V014,
+    );
+    let deth_faucet_hex = resolve_hex(
+        "DARWIN_DETH_FAUCET_HEX",
+        DETH_FAUCET_HEX_V015,
+        DETH_FAUCET_HEX_V014,
+    );
+    let user_wallet = AccountId::from_hex(&user_wallet_hex)?;
+    let controller = AccountId::from_hex(&controller_hex)?;
+    let deth_faucet = AccountId::from_hex(&deth_faucet_hex)?;
 
     // 4. Construct the deposit assets vault: DEPOSIT_AMOUNT base units of
     //    dETH that move from the user wallet into the note's vault.

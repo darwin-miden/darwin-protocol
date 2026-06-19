@@ -11,6 +11,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use miden_client::account::AccountId;
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::FilesystemKeyStore;
 use miden_client::note::Note;
@@ -42,10 +43,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if accounts.is_empty() {
         return Err("no tracked accounts in this store — create one first".into());
     }
-    // For the bootstrap step the store has exactly one account (the
-    // operator wallet). Pick it as the consumer.
-    let (header, _) = accounts.into_iter().next().unwrap();
-    let consumer_id = header.id();
+    // Consumer selection: prefer --consumer / DARWIN_CONSUMER_HEX env
+    // var; fall back to the first tracked account ONLY when the
+    // store has exactly one (single-wallet bootstrap case).
+    let consumer_arg = std::env::args()
+        .skip(1)
+        .scan(false, |take_next, a| {
+            if *take_next {
+                *take_next = false;
+                Some(Some(a))
+            } else if a == "--consumer" || a == "-c" {
+                *take_next = true;
+                Some(None)
+            } else {
+                Some(None)
+            }
+        })
+        .flatten()
+        .next()
+        .or_else(|| std::env::var("DARWIN_CONSUMER_HEX").ok());
+    let consumer_id = match consumer_arg {
+        Some(hex) => AccountId::from_hex(hex.trim())?,
+        None => {
+            if accounts.len() != 1 {
+                return Err(format!(
+                    "{} accounts tracked — pass --consumer <hex> or set DARWIN_CONSUMER_HEX",
+                    accounts.len()
+                )
+                .into());
+            }
+            accounts.into_iter().next().unwrap().0.id()
+        }
+    };
     println!("Consumer wallet: {}", consumer_id.to_hex());
 
     let records = client.get_input_notes(NoteFilter::Committed).await?;
