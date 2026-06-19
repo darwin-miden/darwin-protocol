@@ -97,12 +97,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &root[..18]
             );
         } else {
+            // v0.15: MAST wire format bumped 0.0.2 → 0.0.3 so every
+            // procedure root rotates. We deliberately accept the new
+            // root here; the frontend reads MAST_ROOTS_V015 in lockstep.
+            // Override the exit by setting DARWIN_ALLOW_MAST_ROTATION=1.
+            let allow_rotation = std::env::var("DARWIN_ALLOW_MAST_ROTATION")
+                .ok()
+                .as_deref()
+                == Some("1");
             println!(
-                "✗ backward-compat BROKEN: receive_asset is {} but v2 was {}",
-                &root[..18],
-                &EXPECTED_RECEIVE_ASSET_ROOT[..18]
+                "{symbol} receive_asset MAST root rotated: now {now} (was {was})",
+                symbol = if allow_rotation { "ℹ️ " } else { "✗" },
+                now = &root[..18],
+                was = &EXPECTED_RECEIVE_ASSET_ROOT[..18],
             );
-            std::process::exit(1);
+            if !allow_rotation {
+                eprintln!(
+                    "Set DARWIN_ALLOW_MAST_ROTATION=1 to allow the v0.15 wire-format rotation."
+                );
+                std::process::exit(1);
+            }
         }
     }
 
