@@ -146,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     rand::thread_rng().fill_bytes(&mut seed);
 
     let account = AccountBuilder::new(seed)
-        .storage_mode(AccountType::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(auth_component)
         .with_component(component)
         .build()

@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|chunk| {
                 let mut buf = [0u8; 8];
                 buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf))
+                miden_client::Felt::new(u64::from_le_bytes(buf).expect("bounded") & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
             })
             .collect::<Vec<_>>()
             .as_slice(),
@@ -99,9 +99,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // darwin::math::felt_div on-chain. Demo defaults below match the
     // earlier hard-coded values so observable behaviour is unchanged.
     let storage_felts = vec![
-        miden_client::Felt::new(200_000_000_000), // deposit_value
-        miden_client::Felt::new(9_970),           // fee_factor (99.7%)
-        miden_client::Felt::new(10_000_000_000),  // nav_scale
+        miden_client::Felt::new(200_000_000_000).expect("bounded"), // deposit_value
+        miden_client::Felt::new(9_970).expect("bounded"),           // fee_factor (99.7%)
+        miden_client::Felt::new(10_000_000_000).expect("bounded"),  // nav_scale
     ];
     let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(storage_felts)?);
     let note = Note::new(assets, metadata, recipient);

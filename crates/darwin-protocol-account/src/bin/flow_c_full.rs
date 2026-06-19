@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|chunk| {
                 let mut buf = [0u8; 8];
                 buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf))
+                miden_client::Felt::new(u64::from_le_bytes(buf).expect("bounded") & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
             })
             .collect::<Vec<_>>()
             .as_slice(),
@@ -126,9 +126,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //   release_value = burn_amount * gross_release_factor / scale
     // via darwin::math::felt_div. Empty storage triggers divide-by-zero.
     let storage_felts = vec![
-        miden_client::Felt::new(BURN_AMOUNT),
-        miden_client::Felt::new(9_970),   // gross_release_factor (99.7% net of 30 bps redeem fee)
-        miden_client::Felt::new(1),       // scale (placeholder denominator)
+        miden_client::Felt::new(BURN_AMOUNT).expect("bounded"),
+        miden_client::Felt::new(9_970).expect("bounded"),   // gross_release_factor (99.7% net of 30 bps redeem fee)
+        miden_client::Felt::new(1).expect("bounded"),       // scale (placeholder denominator)
     ];
     let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(storage_felts)?);
     let note = Note::new(assets, metadata, recipient);

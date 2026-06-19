@@ -115,15 +115,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|chunk| {
                 let mut buf = [0u8; 8];
                 buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf))
+                miden_client::Felt::new(u64::from_le_bytes(buf).expect("bounded") & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
             })
             .collect::<Vec<_>>()
             .as_slice(),
     )?;
     let storage_felts = vec![
-        miden_client::Felt::new(200_000_000_000),
-        miden_client::Felt::new(9_970),
-        miden_client::Felt::new(10_000_000_000),
+        miden_client::Felt::new(200_000_000_000).expect("bounded"),
+        miden_client::Felt::new(9_970).expect("bounded"),
+        miden_client::Felt::new(10_000_000_000).expect("bounded"),
     ];
     let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(storage_felts)?);
     let note = Note::new(assets, metadata, recipient);
