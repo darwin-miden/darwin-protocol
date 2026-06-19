@@ -33,6 +33,31 @@ pub mod miden {
     pub use miden_protocol::account::AccountType;
 }
 
+/// Resolve the Miden RPC endpoint from the `MIDEN_NETWORK` env var.
+///
+/// Defaults to **testnet** so existing scripts run unchanged. Set
+/// `MIDEN_NETWORK=devnet` to point every deploy/flow binary at
+/// `rpc.devnet.miden.io` (the v0.15 network that shipped 2026-06-19),
+/// or `MIDEN_NETWORK=localhost` for a local node.
+///
+/// Confirmed endpoints (probed 2026-06-19):
+///   - testnet: `https://rpc.testnet.miden.io`
+///   - devnet:  `https://rpc.devnet.miden.io`
+///       (faucet: `https://faucet.devnet.miden.io`,
+///        explorer: `https://explorer.devnet.miden.io`)
+pub fn miden_endpoint() -> miden_client::rpc::Endpoint {
+    match std::env::var("MIDEN_NETWORK")
+        .ok()
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("devnet") => miden_client::rpc::Endpoint::devnet(),
+        Some("localhost") | Some("local") => miden_client::rpc::Endpoint::localhost(),
+        _ => miden_client::rpc::Endpoint::testnet(),
+    }
+}
+
 /// Re-exports of the basket manifest types this controller depends on.
 pub use darwin_baskets::{BasketManifest, Constituent};
 
