@@ -64,6 +64,14 @@ proc drain_assets_and_credit
         dup.10 neq
     end
     drop dropw dropw drop
+    # 2026-06-20 / v0.15 stack-depth fix: the preamble above pushes
+    # 8 extra felts (amount_word + user_basket_key) on top of the
+    # kernel's pad(16) before entering the drain loop. The drain
+    # loop is depth-neutral but never consumes those 8 extras, so
+    # without this cleanup the script returns at depth 24 and the
+    # kernel rejects with InvalidStackDepthOnReturn{24}. Drop them
+    # so the final depth matches the kernel's required 16.
+    dropw dropw
 end
 
 begin
