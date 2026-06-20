@@ -43,14 +43,21 @@ proc credit_single
     drop
 
     # ════════════════════════════════════════════════════════
-    # PHASE 2: compute net_amount via felt_div and store
+    # PHASE 2: compute net_amount = (depval * fee) / nav and store
     # AMOUNT_WORD = [0, 0, 0, net_amount] in loc[0..3].
+    #
+    # felt_div([num, div]) convention: top = num, below = div, returns num/div.
+    # To get (depval * fee) / nav:
+    #   1. push nav first (it becomes the divisor — bottom of the felt_div pair)
+    #   2. push depval, then fee
+    #   3. mul → consumes top 2 (depval, fee), pushes depval*fee on top
+    #   4. felt_div → top is (depval*fee), below is nav → quotient = depval*fee/nav
     # ════════════════════════════════════════════════════════
-    push.100 mem_load
-    push.101 mem_load
-    push.102 mem_load
-    mul
-    exec.math::felt_div
+    push.102 mem_load          # nav   (will be the divisor)
+    push.100 mem_load          # depval
+    push.101 mem_load          # fee
+    mul                        # depval*fee on top, nav below
+    exec.math::felt_div        # (depval*fee) / nav → net_amount
     push.0 push.0 push.0
     loc_storew_le.0
     dropw
