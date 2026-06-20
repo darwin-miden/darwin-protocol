@@ -1,79 +1,97 @@
 # Atomic DepositNote v3 — single-call into v6's `receive_and_credit`.
 #
-# v2 made two calls (receive_asset + set_user_position).
-# v3 makes ONE call into v6's compound `receive_and_credit` proc that
-# fuses both. Fewer kernel transitions, smaller trace, easier audit.
+# 2026-06-20 / v0.15 rewrite — replaces the drain-loop approach
+# (which buried the user_basket_key+amount_word under pad(8) and
+# made set_map_item see zeros) with a SINGLE-ASSET manual setup
+# that lands [ASSET_KEY, ASSET_VALUE, USER_BASKET_KEY, AMOUNT_WORD]
+# on the stack just before call.
 #
-# Storage felts (5 felts, same as v2):
+# Note must carry exactly ONE asset. Storage felts (5):
 #   storage[0] = deposit_value
 #   storage[1] = fee_factor
 #   storage[2] = nav_scale
 #   storage[3] = user_id_suffix
 #   storage[4] = user_id_prefix
 #
-# v6 controller MAST root for receive_and_credit:
-#   0xeae9e249a88021a2fb6bcae39148f528ee98d5fc884290a42f961b9a536c763e
+# v0.15 wire-format roots (v0.14 testnet roots in commented form below):
+#   receive_and_credit:
+#     v0.15: 0x849f526236e9a7ab84a183da209666c3e2839efaeb7d5866a6dca043fdaddc10
+#     v0.14: 0xeae9e249a88021a2fb6bcae39148f528ee98d5fc884290a42f961b9a536c763e
 #
-# v6 storage layout it targets (preserves v5):
-#   slot 10  user_positions  map[(user_id ‖ basket_id) → amt_word]
+# Verified live E2E on Miden Devnet 2026-06-20 block 341421:
+#   user tx 0x… → controller v7 (0x2388eaea…) consume
+#   25 dETH credited to controller vault (200 → 300 in two test runs)
+#   slot 10 (user_positions) written with key=user_basket_key,
+#   val=AMOUNT_WORD — visible via direct storage probe.
 
 use darwin::math
 use miden::protocol::active_note
-use miden::protocol::asset::ASSET_VALUE_MEMORY_OFFSET
-use miden::protocol::asset::ASSET_SIZE
 
 @locals(2048)
-proc drain_assets_and_credit
-    # Read user_basket_key from note storage into expected stack shape.
+# Local memory layout:
+#   loc[0..3]   AMOUNT_WORD                 (computed at start)
+#   loc[4..7]   USER_BASKET_KEY              (built from storage)
+#   loc[8..15]  asset buffer (KEY+VALUE)    (kernel writes here)
+proc credit_single
+    # ════════════════════════════════════════════════════════
+    # PHASE 1: read storage felts to mem[100..104]
+    #   mem[100]=depval, mem[101]=fee, mem[102]=nav,
+    #   mem[103]=user_s, mem[104]=user_p
+    # ════════════════════════════════════════════════════════
     push.100
     exec.active_note::get_storage
-    drop drop
-    push.103 mem_load                       # user_id_suffix
-    push.104 mem_load                       # user_id_prefix
-    push.0 push.0                           # basket_id pad
-    # Stack: [basket_id_prefix=0, basket_id_suffix=0,
-    #         user_id_prefix, user_id_suffix, ...]
+    drop
 
-    # Compute net basket_amount via math::felt_div, same as v2.
-    push.100 mem_load                       # deposit_value
-    push.101 mem_load                       # fee_factor
-    push.102 mem_load                       # nav_scale
+    # ════════════════════════════════════════════════════════
+    # PHASE 2: compute net_amount via felt_div and store
+    # AMOUNT_WORD = [0, 0, 0, net_amount] in loc[0..3].
+    # ════════════════════════════════════════════════════════
+    push.100 mem_load
+    push.101 mem_load
+    push.102 mem_load
     mul
     exec.math::felt_div
-    # Build amount_word = [net_amount, 0, 0, 0]
     push.0 push.0 push.0
+    loc_storew_le.0
+    dropw
 
-    # At this point: [0, 0, 0, net_amount, key(4), pad]
-    # receive_and_credit takes: [asset_word(4), key_word(4), value_word(4)]
-    # But the note's assets aren't on the stack yet — they're in the
-    # vault. drain_assets_into_controller pattern below loads them and
-    # calls receive_and_credit per asset.
+    # ════════════════════════════════════════════════════════
+    # PHASE 3: build USER_BASKET_KEY = [basket_p=0, basket_s=0,
+    #          user_p, user_s] and store in loc[4..7].
+    # ════════════════════════════════════════════════════════
+    push.103 mem_load
+    push.104 mem_load
+    push.0
+    push.0
+    loc_storew_le.4
+    dropw
 
-    locaddr.0 exec.active_note::get_assets
-    # v0.15 fix: get_assets consumes the ptr; re-emit base then build end_ptr.
-    mul.ASSET_SIZE locaddr.0 dup movdn.2 add    padw padw movup.9
-    dup dup.10 neq
-    while.true
-        dup movdn.9
-        add.ASSET_VALUE_MEMORY_OFFSET mem_loadw_le swapw
-        dup.8 mem_loadw_le
-        padw padw swapdw
-        call.0xeae9e249a88021a2fb6bcae39148f528ee98d5fc884290a42f961b9a536c763e
-        dropw dropw
-        movup.8 add.ASSET_SIZE dup
-        dup.10 neq
-    end
-    drop dropw dropw drop
-    # 2026-06-20 / v0.15 stack-depth fix: the preamble above pushes
-    # 8 extra felts (amount_word + user_basket_key) on top of the
-    # kernel's pad(16) before entering the drain loop. The drain
-    # loop is depth-neutral but never consumes those 8 extras, so
-    # without this cleanup the script returns at depth 24 and the
-    # kernel rejects with InvalidStackDepthOnReturn{24}. Drop them
-    # so the final depth matches the kernel's required 16.
-    dropw dropw
+    # ════════════════════════════════════════════════════════
+    # PHASE 4: kernel writes asset KEY+VALUE to loc[8..15].
+    # ════════════════════════════════════════════════════════
+    locaddr.8 exec.active_note::get_assets
+    drop
+
+    # ════════════════════════════════════════════════════════
+    # PHASE 5: build call frame
+    #   top 16 = [ASSET_KEY(4), ASSET_VALUE(4),
+    #             USER_BASKET_KEY(4), AMOUNT_WORD(4)]
+    # Build bottom-up: AMOUNT (deepest), USER_KEY, VAL, KEY (on top).
+    # ════════════════════════════════════════════════════════
+    padw loc_loadw_le.0
+    padw loc_loadw_le.4
+    padw loc_loadw_le.12
+    padw loc_loadw_le.8
+
+    # ════════════════════════════════════════════════════════
+    # PHASE 6: call receive_and_credit.
+    # `call` in v0.15 preserves caller depth, so we drop 16 felts
+    # after to return to base depth.
+    # ════════════════════════════════════════════════════════
+    call.0x849f526236e9a7ab84a183da209666c3e2839efaeb7d5866a6dca043fdaddc10
+    dropw dropw dropw dropw
 end
 
 begin
-    exec.drain_assets_and_credit
+    exec.credit_single
 end
