@@ -35,17 +35,35 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
-const REAL_BODIES_CONTROLLER_HEX: &str = "0xa25aa0b00007688024b74b05a52aab";
-// Basket-token faucet. M1 deploys: DCC 0x2066f2da…, DAG 0xfb6811fd…,
-// DCO 0xbe4efc67…. The atomic redeem path is faucet-agnostic — the
-// note script doesn't care which faucet it's burning, only that the
-// user wallet actually holds enough units of it. Override the default
-// hint via env `DARWIN_FAUCET_HEX` if you want to force a specific
-// faucet; otherwise the binary discovers a fungible asset with
-// balance >= BURN_AMOUNT from the user wallet's vault.
-const DEFAULT_FAUCET_HINT_HEX: &str = "0xfb6811fd6399df206d44f62800620d";
+// v0.14 testnet defaults.
+const USER_WALLET_HEX_V014: &str = "0xed3cd5befa3207805f8529207cfc0d";
+const CONTROLLER_HEX_V014: &str = "0xa25aa0b00007688024b74b05a52aab";
+const DEFAULT_FAUCET_HINT_HEX_V014: &str = "0xfb6811fd6399df206d44f62800620d";
+
+// v0.15 Devnet defaults — operator wallet, v7 controller, DCC faucet
+// (the redeem path is faucet-agnostic; DCC is the hint).
+const USER_WALLET_HEX_V015: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_V015: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DEFAULT_FAUCET_HINT_HEX_V015: &str = "0x536e8b33e2e10d915bd466faa64099";
+
 const BURN_AMOUNT: u64 = 50;
+
+fn is_devnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("devnet"))
+        .unwrap_or(false)
+}
+
+fn resolve_hex(env_key: &str, devnet: &str, testnet: &str) -> String {
+    std::env::var(env_key).unwrap_or_else(|_| {
+        if is_devnet() {
+            devnet.into()
+        } else {
+            testnet.into()
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,13 +91,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let math_lib = Assembler::default()
         .with_static_library(core_lib.as_ref())?
         .assemble_library([math_module])?;
+    // v0.15 hot-patch: the .masm hardcodes the v0.14 receive_asset
+    // MAST root (0x75f638c6…); substitute the v0.15 root
+    // (0x6170fd6d…) when running on Devnet so the call resolves
+    // against the v7 controller.
+    const RECEIVE_ASSET_V014: &str =
+        "0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb";
+    const RECEIVE_ASSET_V015: &str =
+        "0x6170fd6d682d91777b551fd866258f43cc657f1291f8f071500f4e56e9c153da";
+    let masm_source = if is_devnet() {
+        darwin_notes::ATOMIC_REDEEM_NOTE_MASM
+            .replace(RECEIVE_ASSET_V014, RECEIVE_ASSET_V015)
+    } else {
+        darwin_notes::ATOMIC_REDEEM_NOTE_MASM.to_string()
+    };
     let program = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())?
-        .assemble_program(darwin_notes::ATOMIC_REDEEM_NOTE_MASM)?;
+        .assemble_program(masm_source.as_str())?;
     let note_script = NoteScript::new(program);
 
-    let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
-    let controller = AccountId::from_hex(REAL_BODIES_CONTROLLER_HEX)?;
+    let user_wallet_hex = resolve_hex(
+        "DARWIN_USER_WALLET_HEX",
+        USER_WALLET_HEX_V015,
+        USER_WALLET_HEX_V014,
+    );
+    let controller_hex = resolve_hex(
+        "DARWIN_CONTROLLER_HEX",
+        CONTROLLER_HEX_V015,
+        CONTROLLER_HEX_V014,
+    );
+    let user_wallet = AccountId::from_hex(&user_wallet_hex)?;
+    let controller = AccountId::from_hex(&controller_hex)?;
 
     // Sync so the local store has the freshest vault state. The user
     // wallet is private (Falcon-512), so we can't import_account_by_id
@@ -93,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_account = client
         .get_account(user_wallet)
         .await?
-        .ok_or_else(|| format!("user wallet {USER_WALLET_HEX} not in store after sync"))?;
+        .ok_or_else(|| format!("user wallet {user_wallet_hex} not in store after sync"))?;
     let faucet = pick_redeem_faucet(&user_account)?;
     // v0.15: vault.get_balance takes AssetVaultKey (build via
     // FungibleAsset) and returns Result<AssetAmount>. Convert to u64
@@ -218,7 +260,12 @@ fn pick_redeem_faucet(
         return Ok(id);
     }
 
-    let hint = AccountId::from_hex(DEFAULT_FAUCET_HINT_HEX)?;
+    let hint_hex = if is_devnet() {
+        DEFAULT_FAUCET_HINT_HEX_V015
+    } else {
+        DEFAULT_FAUCET_HINT_HEX_V014
+    };
+    let hint = AccountId::from_hex(hint_hex)?;
     if balance_of(user_account, hint) >= BURN_AMOUNT {
         return Ok(hint);
     }
@@ -235,7 +282,7 @@ fn pick_redeem_faucet(
 
     if candidates.is_empty() {
         return Err(format!(
-            "user wallet {USER_WALLET_HEX} has no fungible asset with balance ≥ {BURN_AMOUNT}. \
+            "user wallet has no fungible asset with balance ≥ {BURN_AMOUNT}. \
              Run a deposit first (e.g. `flow_a_full`) so the controller mints basket-tokens to it."
         )
         .into());
