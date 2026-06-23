@@ -35,16 +35,20 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-// v0.14 testnet defaults.
+// v0.14 legacy defaults — only useful for localhost or a v0.14 node.
 const USER_WALLET_HEX_V014: &str = "0xed3cd5befa3207805f8529207cfc0d";
 const CONTROLLER_HEX_V014: &str = "0xa25aa0b00007688024b74b05a52aab";
 const DEFAULT_FAUCET_HINT_HEX_V014: &str = "0xfb6811fd6399df206d44f62800620d";
 
-// v0.15 Devnet defaults — operator wallet, v7 controller, DCC faucet
-// (the redeem path is faucet-agnostic; DCC is the hint).
-const USER_WALLET_HEX_V015: &str = "0x4397442ac860af717888fe90cad00b";
-const CONTROLLER_HEX_V015: &str = "0x2388eaea4ce45331214b871755e7b5";
-const DEFAULT_FAUCET_HINT_HEX_V015: &str = "0x536e8b33e2e10d915bd466faa64099";
+// v0.15 Devnet defaults — operator wallet, v7 controller, DCC faucet.
+const USER_WALLET_HEX_DEVNET: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_DEVNET: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DEFAULT_FAUCET_HINT_HEX_DEVNET: &str = "0x536e8b33e2e10d915bd466faa64099";
+
+// v0.15 Testnet defaults — deployed 2026-06-23.
+const USER_WALLET_HEX_TESTNET: &str = "0xd563836959ebc61129e70dd5ab4e1a";
+const CONTROLLER_HEX_TESTNET: &str = "0x719bd3a14b42533115b1bcc8e02ea5";
+const DEFAULT_FAUCET_HINT_HEX_TESTNET: &str = "0x4eb76287e07e90714a86ae2b89d700";
 
 const BURN_AMOUNT: u64 = 50;
 
@@ -55,12 +59,21 @@ fn is_devnet() -> bool {
         .unwrap_or(false)
 }
 
-fn resolve_hex(env_key: &str, devnet: &str, testnet: &str) -> String {
+fn is_testnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("testnet"))
+        .unwrap_or(true)
+}
+
+fn resolve_hex(env_key: &str, devnet: &str, testnet: &str, legacy: &str) -> String {
     std::env::var(env_key).unwrap_or_else(|_| {
         if is_devnet() {
             devnet.into()
-        } else {
+        } else if is_testnet() {
             testnet.into()
+        } else {
+            legacy.into()
         }
     })
 }
@@ -99,7 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb";
     const RECEIVE_ASSET_V015: &str =
         "0x6170fd6d682d91777b551fd866258f43cc657f1291f8f071500f4e56e9c153da";
-    let masm_source = if is_devnet() {
+    let net = std::env::var("MIDEN_NETWORK").unwrap_or_else(|_| "testnet".into());
+    let use_v015 = matches!(net.to_ascii_lowercase().as_str(), "devnet" | "testnet");
+    let masm_source = if use_v015 {
         darwin_notes::ATOMIC_REDEEM_NOTE_MASM
             .replace(RECEIVE_ASSET_V014, RECEIVE_ASSET_V015)
     } else {
@@ -112,12 +127,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let user_wallet_hex = resolve_hex(
         "DARWIN_USER_WALLET_HEX",
-        USER_WALLET_HEX_V015,
+        USER_WALLET_HEX_DEVNET,
+        USER_WALLET_HEX_TESTNET,
         USER_WALLET_HEX_V014,
     );
     let controller_hex = resolve_hex(
         "DARWIN_CONTROLLER_HEX",
-        CONTROLLER_HEX_V015,
+        CONTROLLER_HEX_DEVNET,
+        CONTROLLER_HEX_TESTNET,
         CONTROLLER_HEX_V014,
     );
     let user_wallet = AccountId::from_hex(&user_wallet_hex)?;
@@ -261,7 +278,9 @@ fn pick_redeem_faucet(
     }
 
     let hint_hex = if is_devnet() {
-        DEFAULT_FAUCET_HINT_HEX_V015
+        DEFAULT_FAUCET_HINT_HEX_DEVNET
+    } else if is_testnet() {
+        DEFAULT_FAUCET_HINT_HEX_TESTNET
     } else {
         DEFAULT_FAUCET_HINT_HEX_V014
     };

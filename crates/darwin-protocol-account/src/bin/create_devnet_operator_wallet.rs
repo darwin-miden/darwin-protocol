@@ -22,13 +22,15 @@ use std::sync::Arc;
 
 use miden_client::account::component::{AuthSingleSig, BasicWallet};
 use miden_client::account::{
-    AccountBuilder, AccountBuilderSchemaCommitmentExt, AccountType,
+    AccountBuilder, AccountBuilderSchemaCommitmentExt, AccountType, Address,
+    AddressInterface,
 };
 use miden_client::auth::AuthSchemeId;
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::{FilesystemKeyStore, Keystore};
 use miden_client_sqlite_store::SqliteStore;
 use miden_protocol::account::auth::AuthSecretKey;
+use miden_protocol::address::RoutingParameters;
 use rand::{RngCore, rngs::OsRng};
 
 #[tokio::main]
@@ -78,12 +80,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     client.add_account(&account, false).await?;
 
-    let bech32 = account.id().to_bech32(network_id);
+    // Build a full Address with routing parameters set to BasicWallet
+    // interface. The Miden testnet/devnet faucet UIs require the
+    // routing-parameters suffix on the encoded address (e.g.
+    // `mtst1...._qr7qqq...`) because the suffix tells the faucet how to
+    // construct the note-tag for delivery. A bare bech32 (account ID
+    // only, no routing) is rejected with "Invalid request".
+    let address = Address::new(account.id())
+        .with_routing_parameters(RoutingParameters::new(AddressInterface::BasicWallet));
+    let bech32 = address.encode(network_id.clone());
+    let bech32_bare = account.id().to_bech32(network_id);
 
     println!();
-    println!("✅ Fresh Public BasicWallet created on Devnet.");
-    println!("   AccountId hex     : {}", account.id().to_hex());
-    println!("   Address (bech32)  : {bech32}");
+    println!("✅ Fresh Public BasicWallet created.");
+    println!("   AccountId hex          : {}", account.id().to_hex());
+    println!("   Address (bech32 + rp)  : {bech32}");
+    println!("   Address (bech32 bare)  : {bech32_bare}");
     println!("   Store             : {}", store_path.display());
     println!("   Keystore          : {}", keystore_path.display());
     println!();

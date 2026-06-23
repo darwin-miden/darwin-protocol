@@ -45,22 +45,32 @@ fn is_devnet() -> bool {
         .unwrap_or(false)
 }
 
+/// 2026-06-23: testnet was migrated to v0.15 on Miden's side, so the
+/// "v0.14 roots" branch is now only useful for hypothetical localhost
+/// deployments. Both `devnet` and `testnet` networks use the v0.15
+/// roots; switch to V014 only when explicitly running against an
+/// older node.
+fn use_v015_roots() -> bool {
+    let net = std::env::var("MIDEN_NETWORK").unwrap_or_else(|_| "testnet".into());
+    matches!(net.to_ascii_lowercase().as_str(), "devnet" | "testnet")
+}
+
 fn set_target_weights_root() -> &'static str {
-    if is_devnet() {
+    if use_v015_roots() {
         SET_TARGET_WEIGHTS_ROOT_V015
     } else {
         SET_TARGET_WEIGHTS_ROOT_V014
     }
 }
 fn set_fees_root() -> &'static str {
-    if is_devnet() {
+    if use_v015_roots() {
         SET_FEES_ROOT_V015
     } else {
         SET_FEES_ROOT_V014
     }
 }
 fn set_fee_recipient_root() -> &'static str {
-    if is_devnet() {
+    if use_v015_roots() {
         SET_FEE_RECIPIENT_ROOT_V015
     } else {
         SET_FEE_RECIPIENT_ROOT_V014
@@ -72,14 +82,18 @@ fn set_fee_recipient_root() -> &'static str {
 // haven't deployed a relay wallet yet, so default to the operator
 // wallet that funds the deploy. Override via DARWIN_FEE_RECIPIENT_HEX
 // once the relay redeploys.
-const FEE_RECIPIENT_HEX_TESTNET: &str = "0xed3cd5befa3207805f8529207cfc0d";
+//
+// 2026-06-23: testnet v0.15 redeploy — operator wallet 0xd5638369…
+// stands in for the fee recipient until a fresh relay wallet is wired.
+const FEE_RECIPIENT_HEX_TESTNET: &str = "0xd563836959ebc61129e70dd5ab4e1a";
 const FEE_RECIPIENT_HEX_DEVNET: &str = "0x4397442ac860af717888fe90cad00b";
 
-// Basket-token faucets. Devnet hexes captured during the 2026-06-20
-// faucet redeploy (deploy_devnet_faucet output).
-const DCC_FAUCET_HEX_TESTNET: &str = "0x2066f2da1f91ba202af5251d39101c";
-const DAG_FAUCET_HEX_TESTNET: &str = "0xfb6811fd6399df206d44f62800620d";
-const DCO_FAUCET_HEX_TESTNET: &str = "0xbe4efc6729eb3220423b7d6d6a0942";
+// Basket-token faucets. Testnet hexes captured during the 2026-06-23
+// v0.15 redeploy (deploy_devnet_faucet output). Devnet hexes captured
+// during the 2026-06-20 Devnet redeploy.
+const DCC_FAUCET_HEX_TESTNET: &str = "0x4eb76287e07e90714a86ae2b89d700";
+const DAG_FAUCET_HEX_TESTNET: &str = "0xed4219cb5ebf3d911c27dc6b24baa2";
+const DCO_FAUCET_HEX_TESTNET: &str = "0xc58107b160df13d1157b707e3f0a3d";
 const DCC_FAUCET_HEX_DEVNET: &str = "0x536e8b33e2e10d915bd466faa64099";
 const DAG_FAUCET_HEX_DEVNET: &str = "0x6c4f5da5061c6f312e99327a5b36d3";
 const DCO_FAUCET_HEX_DEVNET: &str = "0xf1be7df227291a714c62658a3bcd18";

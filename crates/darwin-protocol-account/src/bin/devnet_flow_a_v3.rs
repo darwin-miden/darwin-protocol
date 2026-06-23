@@ -30,9 +30,27 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-const USER_WALLET_HEX: &str = "0x4397442ac860af717888fe90cad00b";
-const CONTROLLER_HEX: &str = "0x2388eaea4ce45331214b871755e7b5";
-const DETH_FAUCET_HEX: &str = "0xc2c923560dc3cb114ec24ab2291a05";
+// Devnet defaults (2026-06-20 deploy).
+const USER_WALLET_HEX_DEVNET: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_DEVNET: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DETH_FAUCET_HEX_DEVNET: &str = "0xc2c923560dc3cb114ec24ab2291a05";
+
+// Testnet defaults (2026-06-23 v0.15 redeploy).
+const USER_WALLET_HEX_TESTNET: &str = "0xd563836959ebc61129e70dd5ab4e1a";
+const CONTROLLER_HEX_TESTNET: &str = "0x719bd3a14b42533115b1bcc8e02ea5";
+const DETH_FAUCET_HEX_TESTNET: &str = "0xb0411b0e0c4985115c03d034234110";
+
+fn resolve(env_key: &str, devnet: &str, testnet: &str) -> String {
+    if let Ok(v) = std::env::var(env_key) {
+        return v;
+    }
+    let net = std::env::var("MIDEN_NETWORK").unwrap_or_else(|_| "testnet".into());
+    if net.eq_ignore_ascii_case("devnet") {
+        devnet.into()
+    } else {
+        testnet.into()
+    }
+}
 
 const RECEIVE_AND_CREDIT_V014: &str =
     "0xeae9e249a88021a2fb6bcae39148f528ee98d5fc884290a42f961b9a536c763e";
@@ -77,9 +95,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .assemble_program(masm_source.as_str())?;
     let note_script = NoteScript::new(program);
 
-    let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
-    let controller = AccountId::from_hex(CONTROLLER_HEX)?;
-    let deth_faucet = AccountId::from_hex(DETH_FAUCET_HEX)?;
+    let user_wallet = AccountId::from_hex(&resolve(
+        "DARWIN_USER_WALLET_HEX",
+        USER_WALLET_HEX_DEVNET,
+        USER_WALLET_HEX_TESTNET,
+    ))?;
+    let controller = AccountId::from_hex(&resolve(
+        "DARWIN_CONTROLLER_HEX",
+        CONTROLLER_HEX_DEVNET,
+        CONTROLLER_HEX_TESTNET,
+    ))?;
+    let deth_faucet = AccountId::from_hex(&resolve(
+        "DARWIN_DETH_FAUCET_HEX",
+        DETH_FAUCET_HEX_DEVNET,
+        DETH_FAUCET_HEX_TESTNET,
+    ))?;
 
     let assets = NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(
         deth_faucet,
