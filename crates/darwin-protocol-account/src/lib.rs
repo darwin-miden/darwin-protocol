@@ -20,11 +20,42 @@ pub use storage::StorageLayout;
 /// surface uses. Keeping a single re-export point here makes future
 /// migrations across miden-base / miden-objects breaking changes
 /// easier to track.
+///
+/// v0.15: `AccountType` moved over to `miden_protocol::account` (it now
+/// names the storage mode `{ Private, Public }` instead of the old kind
+/// enum like `RegularAccountImmutableCode` / `FungibleFaucet`). We
+/// re-export from miden_protocol so call sites that say
+/// `miden::AccountType::Public` resolve correctly.
 pub mod miden {
     pub use miden_objects::account::{
-        Account, AccountBuilder, AccountId, AccountStorageMode, AccountType, SlotName, StorageMap,
-        StorageSlot,
+        Account, AccountBuilder, AccountId, SlotName, StorageMap, StorageSlot,
     };
+    pub use miden_protocol::account::AccountType;
+}
+
+/// Resolve the Miden RPC endpoint from the `MIDEN_NETWORK` env var.
+///
+/// Defaults to **testnet** so existing scripts run unchanged. Set
+/// `MIDEN_NETWORK=devnet` to point every deploy/flow binary at
+/// `rpc.devnet.miden.io` (the v0.15 network that shipped 2026-06-19),
+/// or `MIDEN_NETWORK=localhost` for a local node.
+///
+/// Confirmed endpoints (probed 2026-06-19):
+///   - testnet: `https://rpc.testnet.miden.io`
+///   - devnet:  `https://rpc.devnet.miden.io`
+///       (faucet: `https://faucet.devnet.miden.io`,
+///        explorer: `https://explorer.devnet.miden.io`)
+pub fn miden_endpoint() -> miden_client::rpc::Endpoint {
+    match std::env::var("MIDEN_NETWORK")
+        .ok()
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("devnet") => miden_client::rpc::Endpoint::devnet(),
+        Some("localhost") | Some("local") => miden_client::rpc::Endpoint::localhost(),
+        _ => miden_client::rpc::Endpoint::testnet(),
+    }
 }
 
 /// Re-exports of the basket manifest types this controller depends on.
@@ -103,7 +134,7 @@ mod tests {
         // Smoke test: the re-export module is wired up and the types
         // resolve. The actual deployment binary uses these directly.
         let _: Option<miden::AccountType> = None;
-        let _: Option<miden::AccountStorageMode> = None;
+        let _: Option<miden::AccountType> = None;
     }
 
     #[test]
@@ -127,14 +158,12 @@ mod tests {
 
     #[test]
     fn stub_account_component_compiles() {
-        // Verifies the v0.14-line controller MASM compiles via
-        // miden-objects' bundled Assembler and yields an
-        // AccountComponent ready for AccountBuilder.
+        // v0.15: account kind is derived from the bundled components and
+        // `supported_types` no longer returns the old kind enum
+        // (`RegularAccountImmutableCode`, `FungibleFaucet`, …) — there's
+        // nothing to assert about it. Compilation alone is the smoke.
         let manifest = darwin_baskets::core_crypto();
         let controller = DarwinBasketController::from_manifest(&manifest);
-        let component = controller.account_component_stub().expect("compiles");
-        assert!(component
-            .supported_types()
-            .contains(&miden::AccountType::RegularAccountImmutableCode));
+        let _component = controller.account_component_stub().expect("compiles");
     }
 }

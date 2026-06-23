@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Setting up miden-client against testnet…");
     let store = SqliteStore::new(store_path).await?;
     let mut client = ClientBuilder::<FilesystemKeyStore>::new()
-        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .grpc_client(&darwin_protocol_account::miden_endpoint(), None)
         .store(Arc::new(store))
         .filesystem_keystore(keystore_path)?
         .build()

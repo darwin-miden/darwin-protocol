@@ -35,17 +35,48 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
-const REAL_BODIES_CONTROLLER_HEX: &str = "0xa25aa0b00007688024b74b05a52aab";
-// Basket-token faucet. M1 deploys: DCC 0x2066f2da…, DAG 0xfb6811fd…,
-// DCO 0xbe4efc67…. The atomic redeem path is faucet-agnostic — the
-// note script doesn't care which faucet it's burning, only that the
-// user wallet actually holds enough units of it. Override the default
-// hint via env `DARWIN_FAUCET_HEX` if you want to force a specific
-// faucet; otherwise the binary discovers a fungible asset with
-// balance >= BURN_AMOUNT from the user wallet's vault.
-const DEFAULT_FAUCET_HINT_HEX: &str = "0xfb6811fd6399df206d44f62800620d";
+// v0.14 legacy defaults — only useful for localhost or a v0.14 node.
+const USER_WALLET_HEX_V014: &str = "0xed3cd5befa3207805f8529207cfc0d";
+const CONTROLLER_HEX_V014: &str = "0xa25aa0b00007688024b74b05a52aab";
+const DEFAULT_FAUCET_HINT_HEX_V014: &str = "0xfb6811fd6399df206d44f62800620d";
+
+// v0.15 Devnet defaults — operator wallet, v7 controller, DCC faucet.
+const USER_WALLET_HEX_DEVNET: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_DEVNET: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DEFAULT_FAUCET_HINT_HEX_DEVNET: &str = "0x536e8b33e2e10d915bd466faa64099";
+
+// v0.15 Testnet defaults — deployed 2026-06-23.
+const USER_WALLET_HEX_TESTNET: &str = "0xd563836959ebc61129e70dd5ab4e1a";
+const CONTROLLER_HEX_TESTNET: &str = "0x719bd3a14b42533115b1bcc8e02ea5";
+const DEFAULT_FAUCET_HINT_HEX_TESTNET: &str = "0x4eb76287e07e90714a86ae2b89d700";
+
 const BURN_AMOUNT: u64 = 50;
+
+fn is_devnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("devnet"))
+        .unwrap_or(false)
+}
+
+fn is_testnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("testnet"))
+        .unwrap_or(true)
+}
+
+fn resolve_hex(env_key: &str, devnet: &str, testnet: &str, legacy: &str) -> String {
+    std::env::var(env_key).unwrap_or_else(|_| {
+        if is_devnet() {
+            devnet.into()
+        } else if is_testnet() {
+            testnet.into()
+        } else {
+            legacy.into()
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -56,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Setting up miden-client against testnet…");
     let store = SqliteStore::new(store_path).await?;
     let mut client = ClientBuilder::<FilesystemKeyStore>::new()
-        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .grpc_client(&darwin_protocol_account::miden_endpoint(), None)
         .store(Arc::new(store))
         .filesystem_keystore(keystore_path)?
         .build()
@@ -73,13 +104,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let math_lib = Assembler::default()
         .with_static_library(core_lib.as_ref())?
         .assemble_library([math_module])?;
+    // v0.15 hot-patch: the .masm hardcodes the v0.14 receive_asset
+    // MAST root (0x75f638c6…); substitute the v0.15 root
+    // (0x6170fd6d…) when running on Devnet so the call resolves
+    // against the v7 controller.
+    const RECEIVE_ASSET_V014: &str =
+        "0x75f638c65584d058542bcf4674b066ae394183021bc9b44dc2fdd97d52f9bcfb";
+    const RECEIVE_ASSET_V015: &str =
+        "0x6170fd6d682d91777b551fd866258f43cc657f1291f8f071500f4e56e9c153da";
+    let net = std::env::var("MIDEN_NETWORK").unwrap_or_else(|_| "testnet".into());
+    let use_v015 = matches!(net.to_ascii_lowercase().as_str(), "devnet" | "testnet");
+    let masm_source = if use_v015 {
+        darwin_notes::ATOMIC_REDEEM_NOTE_MASM
+            .replace(RECEIVE_ASSET_V014, RECEIVE_ASSET_V015)
+    } else {
+        darwin_notes::ATOMIC_REDEEM_NOTE_MASM.to_string()
+    };
     let program = miden_protocol::transaction::TransactionKernel::assembler()
         .with_static_library(math_lib.as_ref())?
-        .assemble_program(darwin_notes::ATOMIC_REDEEM_NOTE_MASM)?;
+        .assemble_program(masm_source.as_str())?;
     let note_script = NoteScript::new(program);
 
-    let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
-    let controller = AccountId::from_hex(REAL_BODIES_CONTROLLER_HEX)?;
+    let user_wallet_hex = resolve_hex(
+        "DARWIN_USER_WALLET_HEX",
+        USER_WALLET_HEX_DEVNET,
+        USER_WALLET_HEX_TESTNET,
+        USER_WALLET_HEX_V014,
+    );
+    let controller_hex = resolve_hex(
+        "DARWIN_CONTROLLER_HEX",
+        CONTROLLER_HEX_DEVNET,
+        CONTROLLER_HEX_TESTNET,
+        CONTROLLER_HEX_V014,
+    );
+    let user_wallet = AccountId::from_hex(&user_wallet_hex)?;
+    let controller = AccountId::from_hex(&controller_hex)?;
 
     // Sync so the local store has the freshest vault state. The user
     // wallet is private (Falcon-512), so we can't import_account_by_id
@@ -93,19 +152,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_account = client
         .get_account(user_wallet)
         .await?
-        .ok_or_else(|| format!("user wallet {USER_WALLET_HEX} not in store after sync"))?;
+        .ok_or_else(|| format!("user wallet {user_wallet_hex} not in store after sync"))?;
     let faucet = pick_redeem_faucet(&user_account)?;
+    // v0.15: vault.get_balance takes AssetVaultKey (build via
+    // FungibleAsset) and returns Result<AssetAmount>. Convert to u64
+    // at the boundary so the println formats the number.
+    let display_balance: u64 = u64::from(
+        user_account
+            .vault()
+            .get_balance(FungibleAsset::new(faucet, 0)?.vault_key())?,
+    );
     println!(
         "Using faucet {} (balance {} ≥ burn {})",
         faucet.to_hex(),
-        user_account.vault().get_balance(faucet)?,
+        display_balance,
         BURN_AMOUNT,
     );
     let assets = NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(
         faucet,
         BURN_AMOUNT,
     )?)])?;
-    let metadata = NoteMetadata::new(user_wallet, NoteType::Public);
+    let metadata = miden_protocol::note::PartialNoteMetadata::new(user_wallet, NoteType::Public);
 
     let mut serial_num_bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut serial_num_bytes);
@@ -115,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|chunk| {
                 let mut buf = [0u8; 8];
                 buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf))
+                miden_client::Felt::new(u64::from_le_bytes(buf) & 0xFFFF_FFFE_FFFF_FFFF).expect("masked to Goldilocks safe range")
             })
             .collect::<Vec<_>>()
             .as_slice(),
@@ -126,9 +193,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //   release_value = burn_amount * gross_release_factor / scale
     // via darwin::math::felt_div. Empty storage triggers divide-by-zero.
     let storage_felts = vec![
-        miden_client::Felt::new(BURN_AMOUNT),
-        miden_client::Felt::new(9_970),   // gross_release_factor (99.7% net of 30 bps redeem fee)
-        miden_client::Felt::new(1),       // scale (placeholder denominator)
+        miden_client::Felt::new(BURN_AMOUNT).expect("bounded"),
+        miden_client::Felt::new(9_970).expect("bounded"),   // gross_release_factor (99.7% net of 30 bps redeem fee)
+        miden_client::Felt::new(1).expect("bounded"),       // scale (placeholder denominator)
     ];
     let recipient = NoteRecipient::new(serial_num, note_script.clone(), NoteStorage::new(storage_felts)?);
     let note = Note::new(assets, metadata, recipient);
@@ -183,9 +250,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn pick_redeem_faucet(
     user_account: &miden_client::account::Account,
 ) -> Result<AccountId, Box<dyn std::error::Error>> {
+    // v0.15: vault.get_balance returns Result<AssetAmount>. Pull
+    // through a tiny helper so the rest of the lookup keeps comparing
+    // u64s.
+    fn balance_of(
+        account: &miden_client::account::Account,
+        faucet: AccountId,
+    ) -> u64 {
+        FungibleAsset::new(faucet, 0)
+            .map(|fa| fa.vault_key())
+            .ok()
+            .and_then(|k| account.vault().get_balance(k).ok())
+            .map(u64::from)
+            .unwrap_or(0)
+    }
+
     if let Ok(forced) = std::env::var("DARWIN_FAUCET_HEX") {
         let id = AccountId::from_hex(forced.trim())?;
-        let bal = user_account.vault().get_balance(id)?;
+        let bal = balance_of(user_account, id);
         if bal < BURN_AMOUNT {
             return Err(format!(
                 "DARWIN_FAUCET_HEX={forced} but wallet balance is {bal} < {BURN_AMOUNT}",
@@ -195,8 +277,15 @@ fn pick_redeem_faucet(
         return Ok(id);
     }
 
-    let hint = AccountId::from_hex(DEFAULT_FAUCET_HINT_HEX)?;
-    if user_account.vault().get_balance(hint).unwrap_or(0) >= BURN_AMOUNT {
+    let hint_hex = if is_devnet() {
+        DEFAULT_FAUCET_HINT_HEX_DEVNET
+    } else if is_testnet() {
+        DEFAULT_FAUCET_HINT_HEX_TESTNET
+    } else {
+        DEFAULT_FAUCET_HINT_HEX_V014
+    };
+    let hint = AccountId::from_hex(hint_hex)?;
+    if balance_of(user_account, hint) >= BURN_AMOUNT {
         return Ok(hint);
     }
 
@@ -204,7 +293,7 @@ fn pick_redeem_faucet(
         .vault()
         .assets()
         .filter_map(|a| match a {
-            Asset::Fungible(fa) => Some((fa.faucet_id(), fa.amount())),
+            Asset::Fungible(fa) => Some((fa.faucet_id(), u64::from(fa.amount()))),
             Asset::NonFungible(_) => None,
         })
         .filter(|(_, amt)| *amt >= BURN_AMOUNT)
@@ -212,7 +301,7 @@ fn pick_redeem_faucet(
 
     if candidates.is_empty() {
         return Err(format!(
-            "user wallet {USER_WALLET_HEX} has no fungible asset with balance ≥ {BURN_AMOUNT}. \
+            "user wallet has no fungible asset with balance ≥ {BURN_AMOUNT}. \
              Run a deposit first (e.g. `flow_a_full`) so the controller mints basket-tokens to it."
         )
         .into());

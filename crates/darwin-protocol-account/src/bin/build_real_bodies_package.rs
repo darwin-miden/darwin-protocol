@@ -172,10 +172,7 @@ fn main() {
 
     // 4. Build the AccountComponentMetadata that the CLI's
     //    `AccountComponent::from_package` will pull back out.
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller",
-        [AccountType::RegularAccountImmutableCode],
-    )
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller")
     .with_description(
         "Darwin Protocol Account controller for DCC, DAG, DCO. \
          compute_nav, compute_mint_amount, compute_redeem_amount \

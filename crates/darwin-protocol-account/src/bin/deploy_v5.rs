@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use miden_client::account::component::AccountComponent;
 use miden_client::account::{
-    AccountBuilder, AccountStorageMode, AccountType, StorageSlot,
+    AccountBuilder, AccountType, StorageSlot,
 };
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::{FilesystemKeyStore, Keystore};
@@ -107,10 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Build the AccountComponent + Account.
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v5-full-storage",
-        [AccountType::RegularAccountImmutableCode],
-    );
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v5-full-storage");
     // Slots 2 (pool_positions), 3 (target_weights), 4 (fees), and
     // 10 (user_positions) are StorageMaps. The rest are scalar values.
     let map_slots = [2usize, 3, 4, 10];
@@ -149,8 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     rand::thread_rng().fill_bytes(&mut seed);
 
     let account = AccountBuilder::new(seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Private)
+        .account_type(AccountType::Private)
         .with_auth_component(auth_component)
         .with_component(component)
         .build()
@@ -159,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("🆕  v5 controller account built");
     println!("    id (hex)    : {}", account.id().to_hex());
-    println!("    account_type: {:?}", account.account_type());
+    println!("    account_type: {:?}", account.id().account_type());
 
     if !deploy {
         println!();
@@ -176,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = SqliteStore::new(store_path).await?;
     let keystore = FilesystemKeyStore::new(keystore_path.clone())?;
     let mut client = ClientBuilder::<FilesystemKeyStore>::new()
-        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .grpc_client(&darwin_protocol_account::miden_endpoint(), None)
         .store(Arc::new(store))
         .filesystem_keystore(keystore_path)?
         .build()

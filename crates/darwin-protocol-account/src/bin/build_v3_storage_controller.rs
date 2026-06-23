@@ -165,10 +165,7 @@ fn main() {
         }
     }
 
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v3-storage",
-        [AccountType::RegularAccountImmutableCode],
-    )
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v3-storage")
     .with_description(
         "Darwin Protocol Account controller v3 (storage-aware). \
          read_pool_position reads slot 2 StorageMap via \

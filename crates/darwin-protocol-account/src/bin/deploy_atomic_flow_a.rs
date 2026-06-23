@@ -31,10 +31,35 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 use rand::RngCore;
 
-const USER_WALLET_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
-const REAL_BODIES_CONTROLLER_HEX: &str = "0x171f46fecf1bca8005ae068a8dfe77";
-const DETH_FAUCET_HEX: &str = "0xa095d9b3831e96206ff70c2218a6a9";
+// v0.14 testnet defaults — used when MIDEN_NETWORK is unset.
+const USER_WALLET_HEX_V014: &str = "0xed3cd5befa3207805f8529207cfc0d";
+const CONTROLLER_HEX_V014: &str = "0x171f46fecf1bca8005ae068a8dfe77";
+const DETH_FAUCET_HEX_V014: &str = "0xa095d9b3831e96206ff70c2218a6a9";
+
+// v0.15 Devnet defaults — captured from deploy_devnet_faucet +
+// create_devnet_operator_wallet + deploy_v7 output on 2026-06-20.
+const USER_WALLET_HEX_V015: &str = "0x4397442ac860af717888fe90cad00b";
+const CONTROLLER_HEX_V015: &str = "0x2388eaea4ce45331214b871755e7b5";
+const DETH_FAUCET_HEX_V015: &str = "0xc2c923560dc3cb114ec24ab2291a05";
+
 const DEPOSIT_AMOUNT: u64 = 100;
+
+fn is_devnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("devnet"))
+        .unwrap_or(false)
+}
+
+fn resolve_hex(env_key: &str, devnet_default: &str, testnet_default: &str) -> String {
+    std::env::var(env_key).unwrap_or_else(|_| {
+        if is_devnet() {
+            devnet_default.into()
+        } else {
+            testnet_default.into()
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Setting up miden-client against testnet…");
     let store = SqliteStore::new(store_path.clone()).await?;
     let mut client = ClientBuilder::<FilesystemKeyStore>::new()
-        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .grpc_client(&darwin_protocol_account::miden_endpoint(), None)
         .store(Arc::new(store))
         .filesystem_keystore(keystore_path)?
         .build()
@@ -78,10 +103,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let note_script = NoteScript::new(note_program);
     println!("Atomic deposit NoteScript root: {:?}", note_script.root());
 
-    // 3. Resolve account IDs.
-    let user_wallet = AccountId::from_hex(USER_WALLET_HEX)?;
-    let controller = AccountId::from_hex(REAL_BODIES_CONTROLLER_HEX)?;
-    let deth_faucet = AccountId::from_hex(DETH_FAUCET_HEX)?;
+    // 3. Resolve account IDs. Overridable via env vars
+    //    DARWIN_USER_WALLET_HEX / DARWIN_CONTROLLER_HEX /
+    //    DARWIN_DETH_FAUCET_HEX, defaulting to network-appropriate
+    //    constants (Devnet if MIDEN_NETWORK=devnet, else testnet).
+    let user_wallet_hex = resolve_hex(
+        "DARWIN_USER_WALLET_HEX",
+        USER_WALLET_HEX_V015,
+        USER_WALLET_HEX_V014,
+    );
+    let controller_hex = resolve_hex(
+        "DARWIN_CONTROLLER_HEX",
+        CONTROLLER_HEX_V015,
+        CONTROLLER_HEX_V014,
+    );
+    let deth_faucet_hex = resolve_hex(
+        "DARWIN_DETH_FAUCET_HEX",
+        DETH_FAUCET_HEX_V015,
+        DETH_FAUCET_HEX_V014,
+    );
+    let user_wallet = AccountId::from_hex(&user_wallet_hex)?;
+    let controller = AccountId::from_hex(&controller_hex)?;
+    let deth_faucet = AccountId::from_hex(&deth_faucet_hex)?;
 
     // 4. Construct the deposit assets vault: DEPOSIT_AMOUNT base units of
     //    dETH that move from the user wallet into the note's vault.
@@ -89,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let assets = NoteAssets::new(vec![Asset::Fungible(fungible)])?;
 
     // 5. Metadata: public note, sender = user wallet, default tag.
-    let metadata = NoteMetadata::new(user_wallet, NoteType::Public);
+    let metadata = miden_protocol::note::PartialNoteMetadata::new(user_wallet, NoteType::Public);
 
     // 6. Recipient: random serial num + the atomic script + empty storage.
     //    Storage carries note inputs (deposit_value, nav, fee_factor).
@@ -97,17 +140,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //    stack via inputs; the script body computes mint_amount.
     let mut serial_num_bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut serial_num_bytes);
-    let serial_num = miden_client::Word::try_from(
-        serial_num_bytes
-            .chunks_exact(8)
-            .map(|chunk| {
-                let mut buf = [0u8; 8];
-                buf.copy_from_slice(chunk);
-                miden_client::Felt::new(u64::from_le_bytes(buf))
-            })
-            .collect::<Vec<_>>()
-            .as_slice(),
-    )?;
+    // v0.15: `Felt::new` returns `Result` so the Goldilocks check happens
+    // at construction. Mask the raw u64 to stay under p - 1 (= 2^64 -
+    // 2^32) before constructing so the random bytes can never overflow.
+    const GOLDILOCKS_SAFE_MASK: u64 = 0xFFFF_FFFE_FFFF_FFFF;
+    let felts: Vec<miden_client::Felt> = serial_num_bytes
+        .chunks_exact(8)
+        .map(|chunk| {
+            let mut buf = [0u8; 8];
+            buf.copy_from_slice(chunk);
+            let v = u64::from_le_bytes(buf) & GOLDILOCKS_SAFE_MASK;
+            miden_client::Felt::new(v).expect("masked u64 is always a valid Goldilocks felt")
+        })
+        .collect();
+    let serial_num = miden_client::Word::try_from(felts.as_slice())?;
     let storage = NoteStorage::new(vec![])?;
     let recipient = NoteRecipient::new(serial_num, note_script.clone(), storage);
     let note = Note::new(assets, metadata, recipient);

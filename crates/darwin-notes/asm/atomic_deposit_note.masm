@@ -38,7 +38,21 @@ use miden::protocol::asset::ASSET_SIZE
 @locals(2048)
 proc drain_assets_into_controller
     locaddr.0 exec.active_note::get_assets
-    mul.ASSET_SIZE dup.1 add
+    # 2026-06-20 / v0.15 fix:
+    # the previous `mul.ASSET_SIZE dup.1 add` assumed the asset base
+    # ptr was at stack[1] after get_assets, but get_assets consumes
+    # its `dest_ptr` arg and only leaves `num_assets` on top — so
+    # `dup.1` was dup-ing whatever the caller left underneath us
+    # (zero padding in practice), and end_ptr ended up at 0+num*8.
+    # Reading from `[0..0+num*8]` in v0.15 returns garbage that
+    # decodes as a V0 faucet id and the kernel's
+    # vault_before_add_asset handler rejects it with
+    # MalformedAsset/InvalidFaucetAccountId(V0). The v0.15 standard
+    # wallet does `mul.ASSET_SIZE locaddr.0 dup movdn.2 add` — push
+    # the base ptr fresh, dup, move it down two so the order is
+    # `[end_ptr, ptr]`. Verified end-to-end consume on Devnet block
+    # 339788 once this fix landed.
+    mul.ASSET_SIZE locaddr.0 dup movdn.2 add
     padw padw movup.9
     dup dup.10 neq
     while.true

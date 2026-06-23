@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use miden_client::account::component::AccountComponent;
 use miden_client::account::{
-    AccountBuilder, AccountStorageMode, AccountType, StorageSlot,
+    AccountBuilder, AccountType, StorageSlot,
 };
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::{FilesystemKeyStore, Keystore};
@@ -97,20 +97,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &root[..18]
             );
         } else {
+            // v0.15: MAST wire format bumped 0.0.2 → 0.0.3 so every
+            // procedure root rotates. We deliberately accept the new
+            // root here; the frontend reads MAST_ROOTS_V015 in lockstep.
+            // Override the exit by setting DARWIN_ALLOW_MAST_ROTATION=1.
+            let allow_rotation = std::env::var("DARWIN_ALLOW_MAST_ROTATION")
+                .ok()
+                .as_deref()
+                == Some("1");
             println!(
-                "✗ backward-compat BROKEN: receive_asset is {} but v2 was {}",
-                &root[..18],
-                &EXPECTED_RECEIVE_ASSET_ROOT[..18]
+                "{symbol} receive_asset MAST root rotated: now {now} (was {was})",
+                symbol = if allow_rotation { "ℹ️ " } else { "✗" },
+                now = &root[..18],
+                was = &EXPECTED_RECEIVE_ASSET_ROOT[..18],
             );
-            std::process::exit(1);
+            if !allow_rotation {
+                eprintln!(
+                    "Set DARWIN_ALLOW_MAST_ROTATION=1 to allow the v0.15 wire-format rotation."
+                );
+                std::process::exit(1);
+            }
         }
     }
 
     // Build the AccountComponent + Account.
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v7-fee-routing",
-        [AccountType::RegularAccountImmutableCode],
-    );
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v7-fee-routing");
     // Slots 2 (pool_positions), 3 (target_weights), 4 (fees), and
     // 10 (user_positions) are StorageMaps. The rest are scalar values.
     let map_slots = [2usize, 3, 4, 10];
@@ -149,8 +160,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     rand::thread_rng().fill_bytes(&mut seed);
 
     let account = AccountBuilder::new(seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(auth_component)
         .with_component(component)
         .build()
@@ -159,7 +169,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
     println!("🆕  v7 controller account built");
     println!("    id (hex)    : {}", account.id().to_hex());
-    println!("    account_type: {:?}", account.account_type());
+    // v0.15: `Account::account_type()` getter is gone — the storage
+    // mode now lives on the AccountId itself.
+    println!("    account_type: {:?}", account.id().account_type());
 
     if !deploy {
         println!();
@@ -176,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = SqliteStore::new(store_path).await?;
     let keystore = FilesystemKeyStore::new(keystore_path.clone())?;
     let mut client = ClientBuilder::<FilesystemKeyStore>::new()
-        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .grpc_client(&darwin_protocol_account::miden_endpoint(), None)
         .store(Arc::new(store))
         .filesystem_keystore(keystore_path)?
         .build()

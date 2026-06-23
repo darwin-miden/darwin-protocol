@@ -18,23 +18,116 @@ use miden_client::keystore::FilesystemKeyStore;
 use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
 
-const SET_TARGET_WEIGHTS_ROOT: &str =
+// MAST roots come from `build_v6_fee_routing_controller`. Two
+// generations are pinned because the v0.14 (testnet) controller and
+// the v0.15 (devnet) controller answer to different procedure roots
+// — wire format 0.0.2 → 0.0.3 rotates every root. The active set is
+// selected at runtime by `MIDEN_NETWORK`.
+
+const SET_TARGET_WEIGHTS_ROOT_V014: &str =
     "0x57a8ef319a2fe090f649760c4db4fdfc698496778daaea8f496cc46070e4057c";
-const SET_FEES_ROOT: &str =
+const SET_FEES_ROOT_V014: &str =
     "0xf2624ee2a579f81446f60cba7fdb06058c36fa2a06fc1b67accaafdd0d86e3f8";
-const SET_FEE_RECIPIENT_ROOT: &str =
+const SET_FEE_RECIPIENT_ROOT_V014: &str =
     "0x6721d6156a7a78b8eea224963e4375ee7423ac2d2f79d58a1c5af542f370d9a4";
 
-// Slot 11 (fee_recipient): set to the relay wallet for the M3 demo —
-// the relay is already authoritative on the L1↔L2 path for ETH users
-// so swept fees compound on its vault. a future iteration swaps this to a dedicated
-// treasury account.
-const FEE_RECIPIENT_HEX: &str = "0xed3cd5befa3207805f8529207cfc0d";
+const SET_TARGET_WEIGHTS_ROOT_V015: &str =
+    "0x26a369cd6781d75d40169223996afcc98602775ce4b6fe9bba8236eb70ceb8e2";
+const SET_FEES_ROOT_V015: &str =
+    "0xfbcc4fdd3852fc7ea0325e62377af7692845f558a2f0e503c5c52edbbde1ed26";
+const SET_FEE_RECIPIENT_ROOT_V015: &str =
+    "0xfed8024bd5134e2229d0ac853fd9191bf3f43479e85af96499c4a05785df6e6c";
 
-// M1 basket faucet IDs.
-const DCC_FAUCET_HEX: &str = "0x2066f2da1f91ba202af5251d39101c";
-const DAG_FAUCET_HEX: &str = "0xfb6811fd6399df206d44f62800620d";
-const DCO_FAUCET_HEX: &str = "0xbe4efc6729eb3220423b7d6d6a0942";
+fn is_devnet() -> bool {
+    std::env::var("MIDEN_NETWORK")
+        .ok()
+        .map(|v| v.eq_ignore_ascii_case("devnet"))
+        .unwrap_or(false)
+}
+
+/// 2026-06-23: testnet was migrated to v0.15 on Miden's side, so the
+/// "v0.14 roots" branch is now only useful for hypothetical localhost
+/// deployments. Both `devnet` and `testnet` networks use the v0.15
+/// roots; switch to V014 only when explicitly running against an
+/// older node.
+fn use_v015_roots() -> bool {
+    let net = std::env::var("MIDEN_NETWORK").unwrap_or_else(|_| "testnet".into());
+    matches!(net.to_ascii_lowercase().as_str(), "devnet" | "testnet")
+}
+
+fn set_target_weights_root() -> &'static str {
+    if use_v015_roots() {
+        SET_TARGET_WEIGHTS_ROOT_V015
+    } else {
+        SET_TARGET_WEIGHTS_ROOT_V014
+    }
+}
+fn set_fees_root() -> &'static str {
+    if use_v015_roots() {
+        SET_FEES_ROOT_V015
+    } else {
+        SET_FEES_ROOT_V014
+    }
+}
+fn set_fee_recipient_root() -> &'static str {
+    if use_v015_roots() {
+        SET_FEE_RECIPIENT_ROOT_V015
+    } else {
+        SET_FEE_RECIPIENT_ROOT_V014
+    }
+}
+
+// Slot 11 (fee_recipient): on testnet this is the relay wallet
+// (sweeps L1↔L2 fees back into its vault). On Devnet bootstrap we
+// haven't deployed a relay wallet yet, so default to the operator
+// wallet that funds the deploy. Override via DARWIN_FEE_RECIPIENT_HEX
+// once the relay redeploys.
+//
+// 2026-06-23: testnet v0.15 redeploy — operator wallet 0xd5638369…
+// stands in for the fee recipient until a fresh relay wallet is wired.
+const FEE_RECIPIENT_HEX_TESTNET: &str = "0xd563836959ebc61129e70dd5ab4e1a";
+const FEE_RECIPIENT_HEX_DEVNET: &str = "0x4397442ac860af717888fe90cad00b";
+
+// Basket-token faucets. Testnet hexes captured during the 2026-06-23
+// v0.15 redeploy (deploy_devnet_faucet output). Devnet hexes captured
+// during the 2026-06-20 Devnet redeploy.
+const DCC_FAUCET_HEX_TESTNET: &str = "0x4eb76287e07e90714a86ae2b89d700";
+const DAG_FAUCET_HEX_TESTNET: &str = "0xed4219cb5ebf3d911c27dc6b24baa2";
+const DCO_FAUCET_HEX_TESTNET: &str = "0xc58107b160df13d1157b707e3f0a3d";
+const DCC_FAUCET_HEX_DEVNET: &str = "0x536e8b33e2e10d915bd466faa64099";
+const DAG_FAUCET_HEX_DEVNET: &str = "0x6c4f5da5061c6f312e99327a5b36d3";
+const DCO_FAUCET_HEX_DEVNET: &str = "0xf1be7df227291a714c62658a3bcd18";
+
+fn fee_recipient_hex() -> String {
+    std::env::var("DARWIN_FEE_RECIPIENT_HEX").unwrap_or_else(|_| {
+        if is_devnet() {
+            FEE_RECIPIENT_HEX_DEVNET.into()
+        } else {
+            FEE_RECIPIENT_HEX_TESTNET.into()
+        }
+    })
+}
+fn dcc_faucet_hex() -> &'static str {
+    if is_devnet() {
+        DCC_FAUCET_HEX_DEVNET
+    } else {
+        DCC_FAUCET_HEX_TESTNET
+    }
+}
+fn dag_faucet_hex() -> &'static str {
+    if is_devnet() {
+        DAG_FAUCET_HEX_DEVNET
+    } else {
+        DAG_FAUCET_HEX_TESTNET
+    }
+}
+fn dco_faucet_hex() -> &'static str {
+    if is_devnet() {
+        DCO_FAUCET_HEX_DEVNET
+    } else {
+        DCO_FAUCET_HEX_TESTNET
+    }
+}
 
 /// Target weights per basket, packed as `[w0, w1, w2, 0]` in bps.
 /// Matches the m1_submission_state memory's basket framing.
@@ -82,8 +175,14 @@ fn tx_script_src(controller: AccountId) -> String {
     let mut script = String::new();
     script.push_str("use miden::core::sys\n\nbegin\n");
 
+    let set_target_weights_root = set_target_weights_root();
+    let set_fees_root = set_fees_root();
+    let set_fee_recipient_root = set_fee_recipient_root();
+
     // ----- v6: write fee_recipient to slot 11 -----
-    let fee_recipient_id = AccountId::from_hex(FEE_RECIPIENT_HEX).expect("fee recipient hex");
+    let fee_recipient_hex = fee_recipient_hex();
+    let fee_recipient_id =
+        AccountId::from_hex(&fee_recipient_hex).expect("fee recipient hex");
     let fee_value = [
         fee_recipient_id.suffix().as_canonical_u64(),
         fee_recipient_id.prefix().as_felt().as_canonical_u64(),
@@ -94,13 +193,13 @@ fn tx_script_src(controller: AccountId) -> String {
     for v in fee_value.iter().rev() {
         script.push_str(&format!("  push.{v}\n"));
     }
-    script.push_str(&format!("  call.{SET_FEE_RECIPIENT_ROOT}\n"));
+    script.push_str(&format!("  call.{set_fee_recipient_root}\n"));
     script.push_str("  dropw\n");
 
     for (sym, faucet) in [
-        ("DCC", DCC_FAUCET_HEX),
-        ("DAG", DAG_FAUCET_HEX),
-        ("DCO", DCO_FAUCET_HEX),
+        ("DCC", dcc_faucet_hex()),
+        ("DAG", dag_faucet_hex()),
+        ("DCO", dco_faucet_hex()),
     ] {
         let key = basket_key_word(faucet);
         let w = weights_for(sym);
@@ -115,7 +214,7 @@ fn tx_script_src(controller: AccountId) -> String {
         for v in key.iter().rev() {
             script.push_str(&format!("  push.{v}\n"));
         }
-        script.push_str(&format!("  call.{SET_TARGET_WEIGHTS_ROOT}\n"));
+        script.push_str(&format!("  call.{set_target_weights_root}\n"));
         script.push_str("  dropw\n"); // discard old value
 
         script.push_str(&format!("  # ----- {sym} fees -----\n"));
@@ -125,7 +224,7 @@ fn tx_script_src(controller: AccountId) -> String {
         for v in key.iter().rev() {
             script.push_str(&format!("  push.{v}\n"));
         }
-        script.push_str(&format!("  call.{SET_FEES_ROOT}\n"));
+        script.push_str(&format!("  call.{set_fees_root}\n"));
         script.push_str("  dropw\n");
     }
 
@@ -147,7 +246,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting miden-client (testnet)…");
     let store = SqliteStore::new(store_path).await?;
     let mut client = ClientBuilder::<FilesystemKeyStore>::new()
-        .grpc_client(&miden_client::rpc::Endpoint::testnet(), None)
+        .grpc_client(&darwin_protocol_account::miden_endpoint(), None)
         .store(Arc::new(store))
         .filesystem_keystore(keystore_path)?
         .build()

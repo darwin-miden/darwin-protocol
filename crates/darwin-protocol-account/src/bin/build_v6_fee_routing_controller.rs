@@ -235,10 +235,7 @@ fn main() {
         }
     }
 
-    let metadata = AccountComponentMetadata::new(
-        "darwin-basket-controller-v6-fee-routing",
-        [AccountType::RegularAccountImmutableCode],
-    )
+    let metadata = AccountComponentMetadata::new("darwin-basket-controller-v6-fee-routing")
     .with_description(
         "Darwin Protocol Account controller v6. Adds slot 11 \
          fee_recipient (set/get) and compound receive_and_credit \

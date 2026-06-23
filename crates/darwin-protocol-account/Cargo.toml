@@ -14,9 +14,9 @@ miden-assembly    = { workspace = true }
 miden-core-lib    = { workspace = true }
 miden-base        = { workspace = true }
 miden-client      = { workspace = true, features = ["tonic"] }
-miden-client-sqlite-store = "0.14"
+miden-client-sqlite-store = "0.15"
 miden-objects     = { workspace = true }
-miden-mast-package = "0.22"
+miden-mast-package = "0.23"
 miden-protocol    = { workspace = true }
 rand              = "0.8"
 serde = { workspace = true }
@@ -30,6 +30,10 @@ miden-core-lib = { workspace = true }
 [features]
 default = []
 pragma-live = ["dep:darwin-oracle-adapter", "dep:anyhow"]
+# v0.15 migration: previously used to gate broken bins. All bins now
+# port cleanly so the feature is a no-op — kept as a stable knob for
+# scripts that already reference it.
+v015-port-wip = []
 
 [dependencies.anyhow]
 version = "1"
