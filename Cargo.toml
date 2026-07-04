@@ -38,6 +38,7 @@ miden-lib        = "0.12"
 miden-protocol   = "0.15"
 miden-client     = "0.15"
 miden-tx         = "0.15"
+miden-standards  = "0.15"
 
 # miden-agglayer is not on crates.io yet (tagged v0.14-alpha in the
 # `next` branch of 0xMiden/protocol). Enable via git when we wire the

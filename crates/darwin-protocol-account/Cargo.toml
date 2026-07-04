@@ -18,6 +18,7 @@ miden-client-sqlite-store = "0.15"
 miden-objects     = { workspace = true }
 miden-mast-package = "0.23"
 miden-protocol    = { workspace = true }
+miden-standards   = { workspace = true }
 rand              = "0.8"
 serde = { workspace = true }
 thiserror = { workspace = true }

@@ -793,6 +793,7 @@ dependencies = [
  "miden-mast-package 0.23.3",
  "miden-objects",
  "miden-protocol 0.15.3",
+ "miden-standards 0.15.3",
  "miden-stdlib",
  "miden-vm",
  "rand 0.8.6",
