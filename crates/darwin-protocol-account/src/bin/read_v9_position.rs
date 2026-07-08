@@ -16,10 +16,13 @@ use miden_protocol::account::{StorageSlotContent, StorageSlotName};
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut account_hex: Option<String> = None;
+    let mut json = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
-        if a == "--account" {
-            account_hex = Some(args.next().expect("--account value"));
+        match a.as_str() {
+            "--account" => account_hex = Some(args.next().expect("--account value")),
+            "--json" => json = true,
+            _ => {}
         }
     }
     let account_id = AccountId::from_hex(&account_hex.expect("--account required"))?;
@@ -40,6 +43,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_account(account_id)
         .await?
         .ok_or("account not tracked in this store")?;
+
+    if json {
+        // Machine output for the /api/network-position route: one line of
+        // JSON with every slot-10 map entry as {key, amount}.
+        let slot10 = StorageSlotName::new("darwin::slot_10".to_string())?;
+        let mut entries = Vec::new();
+        for slot in account.storage().slots() {
+            if slot.name() != &slot10 {
+                continue;
+            }
+            if let StorageSlotContent::Map(map) = slot.content() {
+                for (key, value) in map.entries() {
+                    let amount: u128 = value
+                        .as_elements()
+                        .iter()
+                        .map(|f| f.as_canonical_u64() as u128)
+                        .sum();
+                    entries.push(format!(
+                        "{{\"key\":\"{key}\",\"amount\":\"{amount}\"}}"
+                    ));
+                }
+            }
+        }
+        println!("{{\"entries\":[{}]}}", entries.join(","));
+        return Ok(());
+    }
+
     println!("account : {}", account.id().to_hex());
     println!("nonce   : {}", account.nonce());
     println!("vault   :");
