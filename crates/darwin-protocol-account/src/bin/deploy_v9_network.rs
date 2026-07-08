@@ -40,6 +40,7 @@ use miden_mast_package::Package;
 use miden_protocol::account::StorageSlotName;
 use miden_protocol::account::component::AccountComponentMetadata;
 use miden_standards::account::auth::AuthNetworkAccount;
+use miden_standards::account::wallets::BasicWallet;
 use miden_standards::note::P2idNote;
 use rand::RngCore;
 
@@ -144,10 +145,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut seed = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut seed);
 
+    // BasicWallet exports receive_asset + move_asset_to_note — the
+    // redeem note needs the latter to pay assets out of the vault into
+    // the payback P2ID (swap-note pattern).
     let account = AccountBuilder::new(seed)
         .account_type(AccountType::Public)
         .with_auth_component(auth)
         .with_component(component)
+        .with_component(BasicWallet)
         .build()
         .map_err(|e| format!("build: {e}"))?;
 
