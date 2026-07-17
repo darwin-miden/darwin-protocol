@@ -46,7 +46,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filesystem_keystore(PathBuf::from(format!("{home}/.miden/keystore")))?
         .build()
         .await?;
-    client.sync_state().await?;
+
+    // Freshness skip: the ~400ms `sync_state()` is the whole cost floor. If this
+    // store was synced within BACKUP_READ_FRESH_SECS (dedicated marker file,
+    // written ONLY after a real sync, never touched by reads), skip the sync —
+    // the (older) backup is already in the local store. Backups are OLD by the
+    // time a restore runs, so a recent sync is guaranteed to contain them.
+    // Unset/0 ⇒ always sync (safe default, current behaviour).
+    let fresh_secs: u64 = std::env::var("BACKUP_READ_FRESH_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    let marker = PathBuf::from(format!("{home}/.miden/.backup_read_synced"));
+    let fresh = fresh_secs > 0
+        && std::fs::metadata(&marker)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.elapsed().ok())
+            .map(|e| e.as_secs() < fresh_secs)
+            .unwrap_or(false);
+    if std::env::var("DEBUG").is_ok() {
+        eprintln!("[dbg] fresh_secs={fresh_secs} skip_sync={fresh}");
+    }
+    if !fresh {
+        client.sync_state().await?;
+        let _ = std::fs::write(&marker, b"");
+    }
+
+    // Warm mode: sync (done above) + write marker, then exit without reading.
+    // The restore flow fires this while the user signs, so the real read that
+    // follows finds a fresh marker and skips its own sync.
+    if std::env::var("BACKUP_READ_WARM").is_ok() {
+        println!("{{\"warmed\":true}}");
+        return Ok(());
+    }
 
     let account = client
         .get_account(controller)
