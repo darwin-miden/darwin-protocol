@@ -51,22 +51,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("dUSDC faucet felts: prefix={prefix} suffix={suffix}");
 
     // 2. Assemble the drip note with the real felts → its NoteScript root.
-    let sm: Arc<dyn miden_assembly::SourceManager> = Arc::new(DefaultSourceManager::default());
-    let wallet_module = Module::parser(ModuleKind::Library).parse_str(
-        AsmPath::new("miden::standards::wallets::basic"),
-        darwin_notes::STD_BASIC_WALLET_MASM,
-        sm.clone(),
-    )?;
-    let wallet_lib = TransactionKernel::assembler().assemble_library([wallet_module])?;
-
-    let src = darwin_notes::DRIP_NOTE_MASM
-        .replace("{{DRIP_AMOUNT}}", &DRIP_AMOUNT.to_string())
-        .replace("{{DUSDC_FAUCET_PREFIX}}", &prefix.to_string())
-        .replace("{{DUSDC_FAUCET_SUFFIX}}", &suffix.to_string());
-    let program = TransactionKernel::assembler()
-        .with_static_library(wallet_lib.as_ref())?
-        .assemble_program(&src)?;
-    let drip_root = NoteScript::new(program).root();
+    //    Shared helper so the root matches build_drip_note / debug_drip exactly.
+    let drip_root = darwin_protocol_account::drip_note_script(prefix, suffix, DRIP_AMOUNT)?.root();
     println!("drip NoteScript root: {drip_root:?}");
 
     // 3. Build the NETWORK-account dispenser: BasicWallet (hold + move assets),

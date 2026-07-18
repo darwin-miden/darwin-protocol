@@ -3,21 +3,30 @@
 #
 # Anyone can create this note (it is the ONE script allowlisted on the
 # dispenser). The network's NTX builder consumes it against the dispenser and
-# this script runs in the dispenser's context: it creates a P2ID output note
-# carrying a FIXED payout of dUSDC to the requester and moves that amount out of
-# the dispenser's own vault.
+# this script runs in the dispenser's context: it creates a PUBLIC P2ID output
+# note carrying a FIXED payout of dUSDC to the requester, TAGGED for the
+# requester's account, and moves that amount out of the dispenser's own vault.
+#
+# Why public + tagged: a private, untagged payout note is invisible to the
+# requester's wallet (MidenFi) — its sync only discovers notes tagged for its
+# account, and it can't consume a note whose details it never received. A PUBLIC
+# note records its full details on-chain and, tagged with the requester's
+# account target, is discovered + consumed by MidenFi like any standard payment.
 #
 # The payout amount + faucet are HARDCODED (templated in at deploy time), so a
-# request note can NOT ask for more than one drip — only the payout RECIPIENT is
-# read from the note's storage. No rate-limit by design: each call is a fixed
-# 5 dUSDC and the reserve is cheaply refillable.
+# request note can NOT ask for more than one drip — only the payout TARGET and a
+# unique SERIAL are read from the note's storage. No rate-limit by design.
 #
-# Storage (4 felts, at mem[0..3]): [ RECIPIENT ] — requester's P2ID recipient.
+# Storage (6 felts, elements 0..5):
+#   [0] target_account_id_suffix
+#   [1] target_account_id_prefix
+#   [2..5] SERIAL_NUM (unique per request, so each payout note has a fresh id)
 # Note carries NO asset.
 
 use miden::protocol::active_note
 use miden::protocol::asset
-use miden::protocol::output_note
+use miden::standards::notes::p2id->p2id
+use miden::standards::note_tag
 use miden::standards::wallets::basic->wallet
 
 # Templated at deploy time (deploy_dispenser injects the real values).
@@ -25,28 +34,38 @@ const DRIP_AMOUNT={{DRIP_AMOUNT}}
 const DUSDC_FAUCET_PREFIX={{DUSDC_FAUCET_PREFIX}}
 const DUSDC_FAUCET_SUFFIX={{DUSDC_FAUCET_SUFFIX}}
 
-# Private payout: a private note only needs its recipient digest to be created
-# (a public note would require the full script+inputs details on-chain). The
-# requester imports the payout note file and consumes it — same as the
-# confidential deposit's private payback note.
-const OUTPUT_NOTE_TYPE_PRIVATE=0
-const PAYOUT_TAG=0
+# A public P2ID note: fully on-chain, discoverable by the requester's wallet.
+const OUTPUT_NOTE_TYPE_PUBLIC=1
 const ENABLE_CALLBACKS=0
 
 begin
-    # store note storage (the payout recipient) into memory at address 0.
-    # get_storage returns [num_items, ptr] — drop BOTH (we read from mem).
-    push.0 exec.active_note::get_storage drop drop
+    # write the note storage to memory at elements 0..5, drop the item count.
+    push.0 exec.active_note::get_storage
+    # => [num_storage_items]
+    drop
     # => []
 
-    # load the payout recipient (RECIPIENT is 4 felts at mem[0..3])
-    padw mem_loadw_le.0
-    # => [RECIPIENT]
+    # Build the p2id::new input stack: [target_suffix, target_prefix, note_type,
+    # SERIAL_NUM]. Push SERIAL_NUM first (deepest), then note_type, then the
+    # target id felts on top.
+    mem_load.5 mem_load.4 mem_load.3 mem_load.2
+    # => [SERIAL_NUM]
+    push.OUTPUT_NOTE_TYPE_PUBLIC
+    # => [note_type, SERIAL_NUM]
+    mem_load.1 mem_load.0
+    # => [target_suffix, target_prefix, note_type, SERIAL_NUM]
 
-    # create the private P2ID output note to the requester
-    push.OUTPUT_NOTE_TYPE_PRIVATE push.PAYOUT_TAG
-    # => [tag, note_type, RECIPIENT]
-    exec.output_note::create
+    # derive the account-target tag from the target's prefix (so the requester's
+    # wallet discovers the payout), then splice it in below the two id felts.
+    dup.1
+    # => [target_prefix, target_suffix, target_prefix, note_type, SERIAL_NUM]
+    exec.note_tag::create_account_target
+    # => [tag, target_suffix, target_prefix, note_type, SERIAL_NUM]
+    movdn.2
+    # => [target_suffix, target_prefix, tag, note_type, SERIAL_NUM]
+
+    # create the PUBLIC P2ID output note (records recipient details on-chain).
+    exec.p2id::new
     # => [note_idx]
 
     # arrange [note_idx, pad(7)] so move_asset_to_note gets its padding below

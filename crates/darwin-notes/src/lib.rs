@@ -20,6 +20,16 @@ pub const DRIP_NOTE_MASM: &str = include_str!("../asm/drip_note.masm");
 /// source the dispenser's BasicWallet component uses → same proc root at runtime.
 pub const STD_BASIC_WALLET_MASM: &str = include_str!("../asm/std_basic_wallet.masm");
 
+/// Vendored miden-standards `miden::standards::notes::p2id` — the drip note
+/// links it so `p2id::new` (create a PUBLIC P2ID payout, recipient details
+/// recorded on-chain) resolves.
+pub const STD_P2ID_MASM: &str = include_str!("../asm/std_p2id.masm");
+
+/// Vendored miden-standards `miden::standards::note_tag` — the drip note links
+/// it so `note_tag::create_account_target` (derive the requester's discovery
+/// tag) resolves.
+pub const STD_NOTE_TAG_MASM: &str = include_str!("../asm/std_note_tag.masm");
+
 /// Self-contained atomic deposit note that runs real u64 division on
 /// the deposit value. Wraps `darwin::math::felt_div`. Validated by
 /// `darwin-protocol-account`'s `atomic_deposit_note.rs` integration

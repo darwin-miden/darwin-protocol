@@ -6,18 +6,14 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use miden_assembly::ast::{Module, ModuleKind};
-use miden_assembly::{DefaultSourceManager, Path as AsmPath};
 use miden_client::account::AccountId;
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::FilesystemKeyStore;
 use miden_client::note::{
-    Note, NoteAssets, NoteRecipient, NoteScript, NoteStorage, NoteTag, NoteType,
-    PartialNoteMetadata,
+    Note, NoteAssets, NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata,
 };
 use miden_client::transaction::TransactionRequestBuilder;
 use miden_client_sqlite_store::SqliteStore;
-use miden_protocol::transaction::TransactionKernel;
 use miden_standards::note::P2idNoteStorage;
 use rand::RngCore;
 
@@ -43,27 +39,6 @@ fn rand_word() -> Result<miden_client::Word, Box<dyn std::error::Error>> {
     )?)
 }
 
-fn drip_script() -> Result<NoteScript, Box<dyn std::error::Error>> {
-    let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
-    let prefix = dusdc.prefix().as_felt().as_canonical_u64();
-    let suffix = dusdc.suffix().as_canonical_u64();
-    let sm: Arc<dyn miden_assembly::SourceManager> = Arc::new(DefaultSourceManager::default());
-    let wallet_module = Module::parser(ModuleKind::Library).parse_str(
-        AsmPath::new("miden::standards::wallets::basic"),
-        darwin_notes::STD_BASIC_WALLET_MASM,
-        sm.clone(),
-    )?;
-    let wallet_lib = TransactionKernel::assembler().assemble_library([wallet_module])?;
-    let src = darwin_notes::DRIP_NOTE_MASM
-        .replace("{{DRIP_AMOUNT}}", &DRIP_AMOUNT.to_string())
-        .replace("{{DUSDC_FAUCET_PREFIX}}", &prefix.to_string())
-        .replace("{{DUSDC_FAUCET_SUFFIX}}", &suffix.to_string());
-    let program = TransactionKernel::assembler()
-        .with_static_library(wallet_lib.as_ref())?
-        .assemble_program(&src)?;
-    Ok(NoteScript::new(program))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -75,12 +50,22 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let dispenser = AccountId::from_hex(WALLET_DISP)?;
     let payout_to = AccountId::from_hex(PAYOUT_TO)?;
 
-    let payout_serial = rand_word()?;
-    let payout_recipient = P2idNoteStorage::new(payout_to).into_recipient(payout_serial);
-    let storage_felts: Vec<miden_client::Felt> =
-        payout_recipient.digest().as_elements().to_vec();
+    // Storage the drip script reads: [target_suffix, target_prefix, SERIAL(4)].
+    let serial = rand_word()?;
+    let mut storage_felts = vec![payout_to.suffix(), payout_to.prefix().as_felt()];
+    storage_felts.extend_from_slice(serial.as_elements());
 
-    let script = drip_script()?;
+    // The PUBLIC P2ID payout the MASM will create. Providing its recipient makes
+    // the executor register the P2ID script (a public note records its script
+    // on-chain) AND validates our recipient matches the MASM's p2id::new output.
+    let payout_recipient = P2idNoteStorage::new(payout_to).into_recipient(serial);
+
+    let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
+    let script = darwin_protocol_account::drip_note_script(
+        dusdc.prefix().as_felt().as_canonical_u64(),
+        dusdc.suffix().as_canonical_u64(),
+        DRIP_AMOUNT,
+    )?;
     let drip_recipient = NoteRecipient::new(rand_word()?, script, NoteStorage::new(storage_felts)?);
     let assets = NoteAssets::new(vec![])?;
     let metadata = PartialNoteMetadata::new(dispenser, NoteType::Public)
@@ -102,11 +87,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Consume the drip note LOCALLY against the wallet dispenser.
     let req = TransactionRequestBuilder::new()
         .input_notes(vec![(note.clone(), None)])
+        .expected_output_recipients(vec![payout_recipient])
         .build()?;
     match client.execute_transaction(dispenser, req).await {
         Ok(result) => {
             println!("✓✓ drip executed LOCALLY — MASM is correct!");
             println!("    tx: {}", result.executed_transaction().id());
+            println!("    payout target should be: {payout_to}");
+            let out = result.executed_transaction().output_notes();
+            println!("    created {} output note(s):", out.num_notes());
+            for on in out.iter() {
+                println!(
+                    "      id={} type={:?} recipient={:?}",
+                    on.id(),
+                    on.metadata().note_type(),
+                    on.recipient_digest(),
+                );
+            }
         }
         Err(e) => {
             println!("✗ drip MASM runtime error:");

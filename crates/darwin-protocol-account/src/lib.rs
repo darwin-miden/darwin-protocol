@@ -99,6 +99,43 @@ pub fn flow_library() -> miden_assembly::Library {
         .expect("bundled darwin flow library deserialises")
 }
 
+/// Assemble the permissionless drip note script, linking the vendored
+/// miden-standards libraries it depends on (BasicWallet, note_tag, P2ID). Every
+/// binary that needs the drip note's script root — `deploy_dispenser` (to
+/// allowlist it), `build_drip_note` (the /faucet API), `debug_drip` (local
+/// exec) — goes through here so the root never drifts between them.
+///
+/// `dusdc_prefix` / `dusdc_suffix` are the dUSDC faucet id felts and
+/// `drip_amount` the fixed payout in base units; they template into the script.
+/// (Assembly ignores the templated values, so placeholders are fine when only
+/// the root is needed — but pass the real values on the paths that emit notes.)
+pub fn drip_note_script(
+    dusdc_prefix: u64,
+    dusdc_suffix: u64,
+    drip_amount: u64,
+) -> Result<miden_client::note::NoteScript, Box<dyn std::error::Error>> {
+    use miden_protocol::transaction::TransactionKernel;
+
+    // Link the whole assembled miden-standards library. This resolves
+    // `p2id::new`, `note_tag::create_account_target`, and
+    // `wallet::move_asset_to_note` to the CANONICAL standard scripts — so the
+    // payout the drip creates carries the exact P2ID script root the network and
+    // MidenFi recognise (a hand-vendored p2id assembles to a different root,
+    // which the requester's wallet would not treat as a standard payment).
+    let std_lib = miden_standards::StandardsLib::default();
+
+    let src = darwin_notes::DRIP_NOTE_MASM
+        .replace("{{DRIP_AMOUNT}}", &drip_amount.to_string())
+        .replace("{{DUSDC_FAUCET_PREFIX}}", &dusdc_prefix.to_string())
+        .replace("{{DUSDC_FAUCET_SUFFIX}}", &dusdc_suffix.to_string());
+
+    let program = TransactionKernel::assembler()
+        .with_static_library(std_lib.as_ref())?
+        .assemble_program(&src)?;
+
+    Ok(miden_client::note::NoteScript::new(program))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
