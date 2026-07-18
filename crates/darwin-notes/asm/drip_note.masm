@@ -25,7 +25,11 @@ const DRIP_AMOUNT={{DRIP_AMOUNT}}
 const DUSDC_FAUCET_PREFIX={{DUSDC_FAUCET_PREFIX}}
 const DUSDC_FAUCET_SUFFIX={{DUSDC_FAUCET_SUFFIX}}
 
-const OUTPUT_NOTE_TYPE_PUBLIC=1
+# Private payout: a private note only needs its recipient digest to be created
+# (a public note would require the full script+inputs details on-chain). The
+# requester imports the payout note file and consumes it — same as the
+# confidential deposit's private payback note.
+const OUTPUT_NOTE_TYPE_PRIVATE=0
 const PAYOUT_TAG=0
 const ENABLE_CALLBACKS=0
 
@@ -39,8 +43,8 @@ begin
     padw mem_loadw_le.0
     # => [RECIPIENT]
 
-    # create the public P2ID output note to the requester
-    push.OUTPUT_NOTE_TYPE_PUBLIC push.PAYOUT_TAG
+    # create the private P2ID output note to the requester
+    push.OUTPUT_NOTE_TYPE_PRIVATE push.PAYOUT_TAG
     # => [tag, note_type, RECIPIENT]
     exec.output_note::create
     # => [note_idx]
