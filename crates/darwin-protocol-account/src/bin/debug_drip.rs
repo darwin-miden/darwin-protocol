@@ -60,6 +60,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // on-chain) AND validates our recipient matches the MASM's p2id::new output.
     let payout_recipient = P2idNoteStorage::new(payout_to).into_recipient(serial);
 
+    // The payout NoteId we'd compute in build_drip_note (recipient + 5 dUSDC).
+    // Must equal the output note the MASM creates below.
+    let dusdc_for_id = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
+    let expected_payout = Note::new(
+        NoteAssets::new(vec![miden_client::asset::Asset::Fungible(
+            miden_client::asset::FungibleAsset::new(dusdc_for_id, DRIP_AMOUNT)?,
+        )])?,
+        PartialNoteMetadata::new(dispenser, NoteType::Public)
+            .with_tag(NoteTag::with_account_target(payout_to)),
+        payout_recipient.clone(),
+    );
+    println!("computed payout id (build_drip_note): {}", expected_payout.id());
+
     let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
     let script = darwin_protocol_account::drip_note_script(
         dusdc.prefix().as_felt().as_canonical_u64(),

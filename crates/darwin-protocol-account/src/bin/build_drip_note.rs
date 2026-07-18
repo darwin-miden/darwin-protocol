@@ -9,12 +9,13 @@
 
 use base64::Engine as _;
 use miden_client::account::AccountId;
+use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::note::{
     Note, NoteAssets, NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata,
 };
 use miden_protocol::note::{NoteAttachment, NoteAttachments};
 use miden_protocol::utils::serde::Serializable;
-use miden_standards::note::{NetworkAccountTarget, NoteExecutionHint};
+use miden_standards::note::{NetworkAccountTarget, NoteExecutionHint, P2idNoteStorage};
 use rand::RngCore;
 
 const DUSDC_FAUCET_HEX: &str = "0xfc90f0f4da30e51168453b60eafed7";
@@ -85,12 +86,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let drip_note =
         Note::with_attachments(NoteAssets::new(vec![])?, metadata, drip_recipient, attachments);
 
+    // Compute the id of the PUBLIC P2ID payout the drip will create. NoteId =
+    // hash(recipient, assets) — independent of metadata — and the drip's
+    // p2id::new builds the recipient from the SAME target + serial + standard
+    // P2ID script, so this id matches the on-chain payout (verified via
+    // debug_drip's expected_output_recipients). Returning it lets the browser
+    // consume by id directly (no extra "read consumable notes" wallet prompt).
+    let payout_recipient = P2idNoteStorage::new(requester).into_recipient(serial);
+    let payout_note = Note::new(
+        NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(dusdc, DRIP_AMOUNT)?)])?,
+        PartialNoteMetadata::new(dispenser, NoteType::Public)
+            .with_tag(NoteTag::with_account_target(requester)),
+        payout_recipient,
+    );
+
     let b64 = base64::engine::general_purpose::STANDARD;
     println!(
         "{}",
         serde_json::json!({
             "noteId": drip_note.id().to_string(),
             "noteB64": b64.encode(drip_note.to_bytes()),
+            "payoutId": payout_note.id().to_string(),
         })
     );
     Ok(())
