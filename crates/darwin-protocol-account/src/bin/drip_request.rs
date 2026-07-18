@@ -87,7 +87,15 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let note = Note::with_attachments(assets, metadata, drip_recipient, attachments);
     println!("drip request note id: {}", note.id());
-    println!("payout target: {requester} (public P2ID note, discovered by sync)");
+    let payout_recipient = P2idNoteStorage::new(requester).into_recipient(serial);
+    let payout_id = Note::new(
+        NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(dusdc, DRIP_AMOUNT)?)])?,
+        PartialNoteMetadata::new(dispenser, NoteType::Public)
+            .with_tag(NoteTag::with_account_target(requester)),
+        payout_recipient,
+    )
+    .id();
+    println!("PAYOUT_ID={payout_id}");
 
     let home = std::env::var("HOME")?;
     let base = format!("{home}/.miden");
