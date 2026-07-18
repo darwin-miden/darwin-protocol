@@ -782,6 +782,7 @@ name = "darwin-protocol-account"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "darwin-baskets",
  "darwin-notes",
  "darwin-oracle-adapter",
@@ -798,6 +799,7 @@ dependencies = [
  "miden-vm",
  "rand 0.8.6",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
 ]
