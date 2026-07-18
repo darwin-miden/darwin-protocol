@@ -62,13 +62,25 @@ fn drip_script() -> Result<NoteScript, Box<dyn std::error::Error>> {
     Ok(NoteScript::new(program))
 }
 
+/// Parse an account id from either hex (0x…) or bech32 (mtst1…) — MidenFi hands
+/// the browser a bech32 address, while the CLI/derived-wallet paths use hex.
+fn parse_account(s: &str) -> Result<AccountId, Box<dyn std::error::Error>> {
+    if let Ok(id) = AccountId::from_hex(s) {
+        return Ok(id);
+    }
+    match AccountId::from_bech32(s) {
+        Ok((_net, id)) => Ok(id),
+        Err(e) => Err(format!("requester '{s}' is neither hex nor bech32: {e:?}").into()),
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
-        return Err(format!("usage: {} <requester_hex> <dispenser_hex>", args[0]).into());
+        return Err(format!("usage: {} <requester> <dispenser>", args[0]).into());
     }
-    let requester = AccountId::from_hex(&args[1])?;
-    let dispenser = AccountId::from_hex(&args[2])?;
+    let requester = parse_account(&args[1])?;
+    let dispenser = parse_account(&args[2])?;
     let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
 
     // Payout recipient (P2ID to the requester) → its digest goes in the drip
@@ -115,6 +127,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "noteB64": b64.encode(drip_note.to_bytes()),
             "payoutId": payout_note.id().to_string(),
             "payoutFileB64": b64.encode(payout_file.to_bytes()),
+            // raw Note bytes for MidenFi requestConsume(noteBytes) of the private payout
+            "payoutNoteB64": b64.encode(payout_note.to_bytes()),
         })
     );
     Ok(())
