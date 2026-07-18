@@ -13,6 +13,7 @@ use std::sync::Arc;
 use miden_assembly::ast::{Module, ModuleKind};
 use miden_assembly::{DefaultSourceManager, Path as AsmPath};
 use miden_client::account::AccountId;
+use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::builder::ClientBuilder;
 use miden_client::keystore::FilesystemKeyStore;
 use miden_client::note::{
@@ -131,6 +132,25 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("    requester : {}", args[1]);
     println!("    dispenser : {}", args[2]);
     println!("    emit tx   : {tx_id} (height {height})");
-    println!("The NTX builder should run the drip → a 5 dUSDC payout note to the requester.");
+
+    // The payout is a PRIVATE note (only its recipient digest lives on-chain),
+    // so the requester can't discover it by sync — hand them the NoteFile to
+    // import + consume. Its recipient/assets match exactly what the drip script
+    // creates, so its nullifier matches the dispenser's on-chain payout.
+    use miden_protocol::utils::serde::Serializable;
+    let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
+    let payout_note = Note::new(
+        NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(dusdc, DRIP_AMOUNT)?)])?,
+        PartialNoteMetadata::new(dispenser, NoteType::Private),
+        payout_recipient,
+    );
+    let payout_file = miden_protocol::note::NoteFile::NoteDetails {
+        details: payout_note.into(),
+        after_block_num: 0u32.into(),
+        tag: None,
+    };
+    let out = std::env::var("DRIP_PAYOUT_FILE").unwrap_or_else(|_| "/tmp/drip_payout.mno".into());
+    std::fs::write(&out, payout_file.to_bytes())?;
+    println!("    payout    : {out} (import + consume to claim 5 dUSDC)");
     Ok(())
 }
