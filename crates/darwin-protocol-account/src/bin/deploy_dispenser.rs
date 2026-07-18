@@ -28,6 +28,7 @@ use miden_client_sqlite_store::SqliteStore;
 use miden_protocol::transaction::TransactionKernel;
 use miden_standards::account::auth::AuthNetworkAccount;
 use miden_standards::account::wallets::BasicWallet;
+use miden_standards::note::{P2idNote, P2ideNote};
 use rand::RngCore;
 use rand::rngs::OsRng;
 
@@ -72,6 +73,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     //    AuthNetworkAccount allowlisting ONLY the drip script.
     let mut allowed = BTreeSet::new();
     allowed.insert(drip_root.clone());
+    // Also allowlist P2ID/P2IDE so the network consumes funding notes into the
+    // dispenser's vault (receiving assets is safe — only the drip pays out).
+    allowed.insert(P2idNote::script_root());
+    allowed.insert(P2ideNote::script_root());
     let auth = AuthNetworkAccount::with_allowed_notes(allowed)
         .map_err(|e| format!("AuthNetworkAccount: {e:?}"))?;
 
