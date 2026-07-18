@@ -47,27 +47,6 @@ fn rand_word() -> Result<miden_client::Word, Box<dyn std::error::Error>> {
     )?)
 }
 
-fn drip_script() -> Result<NoteScript, Box<dyn std::error::Error>> {
-    let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
-    let prefix = dusdc.prefix().as_felt().as_canonical_u64();
-    let suffix = dusdc.suffix().as_canonical_u64();
-    let sm: Arc<dyn miden_assembly::SourceManager> = Arc::new(DefaultSourceManager::default());
-    let wallet_module = Module::parser(ModuleKind::Library).parse_str(
-        AsmPath::new("miden::standards::wallets::basic"),
-        darwin_notes::STD_BASIC_WALLET_MASM,
-        sm.clone(),
-    )?;
-    let wallet_lib = TransactionKernel::assembler().assemble_library([wallet_module])?;
-    let src = darwin_notes::DRIP_NOTE_MASM
-        .replace("{{DRIP_AMOUNT}}", &DRIP_AMOUNT.to_string())
-        .replace("{{DUSDC_FAUCET_PREFIX}}", &prefix.to_string())
-        .replace("{{DUSDC_FAUCET_SUFFIX}}", &suffix.to_string());
-    let program = TransactionKernel::assembler()
-        .with_static_library(wallet_lib.as_ref())?
-        .assemble_program(&src)?;
-    Ok(NoteScript::new(program))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -83,15 +62,18 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let requester = AccountId::from_hex(&args[1])?;
     let dispenser = AccountId::from_hex(&args[2])?;
 
-    // The payout recipient: a P2ID note the dispenser will create to the
-    // requester. Its digest goes into the drip note's storage (4 felts) — the
-    // ONLY thing the drip script reads.
-    let payout_serial = rand_word()?;
-    let payout_recipient = P2idNoteStorage::new(requester).into_recipient(payout_serial);
-    let storage_felts: Vec<miden_client::Felt> =
-        payout_recipient.digest().as_elements().to_vec();
+    // Drip storage the script reads: [target_suffix, target_prefix, SERIAL(4)].
+    // The drip creates a PUBLIC P2ID payout to the requester via p2id::new.
+    let serial = rand_word()?;
+    let mut storage_felts = vec![requester.suffix(), requester.prefix().as_felt()];
+    storage_felts.extend_from_slice(serial.as_elements());
 
-    let script = drip_script()?;
+    let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
+    let script = darwin_protocol_account::drip_note_script(
+        dusdc.prefix().as_felt().as_canonical_u64(),
+        dusdc.suffix().as_canonical_u64(),
+        DRIP_AMOUNT,
+    )?;
     let drip_recipient = NoteRecipient::new(rand_word()?, script, NoteStorage::new(storage_felts)?);
 
     // No asset on the request. Network-tagged so the NTX builder runs it.
@@ -105,7 +87,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let note = Note::with_attachments(assets, metadata, drip_recipient, attachments);
     println!("drip request note id: {}", note.id());
-    println!("payout recipient digest: {:?}", payout_recipient.digest());
+    println!("payout target: {requester} (public P2ID note, discovered by sync)");
 
     let home = std::env::var("HOME")?;
     let base = format!("{home}/.miden");
@@ -132,25 +114,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("    requester : {}", args[1]);
     println!("    dispenser : {}", args[2]);
     println!("    emit tx   : {tx_id} (height {height})");
-
-    // The payout is a PRIVATE note (only its recipient digest lives on-chain),
-    // so the requester can't discover it by sync — hand them the NoteFile to
-    // import + consume. Its recipient/assets match exactly what the drip script
-    // creates, so its nullifier matches the dispenser's on-chain payout.
-    use miden_protocol::utils::serde::Serializable;
-    let dusdc = AccountId::from_hex(DUSDC_FAUCET_HEX)?;
-    let payout_note = Note::new(
-        NoteAssets::new(vec![Asset::Fungible(FungibleAsset::new(dusdc, DRIP_AMOUNT)?)])?,
-        PartialNoteMetadata::new(dispenser, NoteType::Private),
-        payout_recipient,
-    );
-    let payout_file = miden_protocol::note::NoteFile::NoteDetails {
-        details: payout_note.into(),
-        after_block_num: 0u32.into(),
-        tag: None,
-    };
-    let out = std::env::var("DRIP_PAYOUT_FILE").unwrap_or_else(|_| "/tmp/drip_payout.mno".into());
-    std::fs::write(&out, payout_file.to_bytes())?;
-    println!("    payout    : {out} (import + consume to claim 5 dUSDC)");
+    println!("    → NTX builder will pay out a PUBLIC P2ID note tagged for the requester.");
     Ok(())
 }
