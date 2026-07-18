@@ -12,6 +12,13 @@
 
 pub const DEPOSIT_NOTE_MASM: &str = include_str!("../asm/deposit_note.masm");
 pub const REDEEM_NOTE_MASM: &str = include_str!("../asm/redeem_note.masm");
+/// Permissionless dUSDC-dispenser drip request. Templated (faucet felts +
+/// amount) at deploy time, then assembled to get its NoteScriptRoot.
+pub const DRIP_NOTE_MASM: &str = include_str!("../asm/drip_note.masm");
+/// Vendored copy of the miden-standards BasicWallet library, linked into the
+/// assembler so the drip note can resolve `wallet::move_asset_to_note`. Same
+/// source the dispenser's BasicWallet component uses → same proc root at runtime.
+pub const STD_BASIC_WALLET_MASM: &str = include_str!("../asm/std_basic_wallet.masm");
 
 /// Self-contained atomic deposit note that runs real u64 division on
 /// the deposit value. Wraps `darwin::math::felt_div`. Validated by

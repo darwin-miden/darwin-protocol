@@ -787,12 +787,13 @@ dependencies = [
  "darwin-oracle-adapter",
  "miden-assembly 0.23.3",
  "miden-base",
- "miden-client 0.15.2",
+ "miden-client 0.15.4",
  "miden-client-sqlite-store 0.15.2",
  "miden-core-lib 0.23.3",
  "miden-mast-package 0.23.3",
  "miden-objects",
  "miden-protocol 0.15.3",
+ "miden-standards 0.15.3",
  "miden-stdlib",
  "miden-vm",
  "rand 0.8.6",
@@ -1514,7 +1515,7 @@ dependencies = [
  "hyper",
  "libc",
  "pin-project-lite",
- "socket2 0.6.4",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -2171,9 +2172,9 @@ dependencies = [
 
 [[package]]
 name = "miden-client"
-version = "0.15.2"
+version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6eb783623b8f55d013833c4eef35190f44da3629d0d13a13693285004f8d3fe2"
+checksum = "dfe7ffae180889a614a2be3be194f8cb84f0f20658f1a7ae33c3ae140193db19"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2237,7 +2238,7 @@ dependencies = [
  "chrono",
  "deadpool",
  "deadpool-sync",
- "miden-client 0.15.2",
+ "miden-client 0.15.4",
  "miden-protocol 0.15.3",
  "rusqlite",
  "rusqlite_migration",
