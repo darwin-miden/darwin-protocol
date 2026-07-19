@@ -1,6 +1,6 @@
 # Flow B trigger note.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §6.4 (Flow B).
+# Spec: darwin-docs/architecture-spec.md §6.4 (Flow B).
 #
 # Consumed by a v4+ Darwin Protocol Account (controller).
 # The note has zero assets; its only payload is metadata describing

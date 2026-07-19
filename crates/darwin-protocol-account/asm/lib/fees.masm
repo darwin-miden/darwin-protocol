@@ -1,6 +1,6 @@
 # Fee accrual primitives for the Darwin Protocol Account.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §6.4.
+# Spec: darwin-docs/architecture-spec.md §6.4.
 #
 # Today the only fee that needs in-circuit accrual is the management
 # fee, which is streamed linearly per block. Mint and redeem fees are

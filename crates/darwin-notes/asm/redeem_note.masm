@@ -1,6 +1,6 @@
 # RedeemNote — consumed by the Darwin Protocol Account.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §6.5 + §7.2.
+# Spec: darwin-docs/architecture-spec.md §6.5 + §7.2.
 # Inputs: [burn_amount, RECIPIENT_ADDRESS, EXPIRY_BLOCK, BASKET_ID]
 # Asset payload: (basket_token_faucet_id, burn_amount)
 # Effect: releases a pro-rata bundle of underlyings to RECIPIENT_ADDRESS

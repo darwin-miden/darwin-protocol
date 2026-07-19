@@ -1,6 +1,6 @@
 # Basket-token redeem math.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §6.5.
+# Spec: darwin-docs/architecture-spec.md §6.5.
 #
 # Two procedures compose the Miden side of Flow C:
 #

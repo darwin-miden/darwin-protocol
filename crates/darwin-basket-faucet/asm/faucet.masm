@@ -1,6 +1,6 @@
 # Darwin basket-token FungibleFaucet — MASM source.
 #
-# Spec: see darwin-docs/m1-architecture-spec.md §6.6.
+# Spec: see darwin-docs/architecture-spec.md §6.6.
 #
 # Components:
 #   - NetworkFungibleFaucet  (standard mintable/burnable fungible faucet)

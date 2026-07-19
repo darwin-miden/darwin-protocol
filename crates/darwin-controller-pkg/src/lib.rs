@@ -1,6 +1,6 @@
 //! Darwin Basket Controller — Rust→Miden account component.
 //!
-//! Spec: darwin-docs/m1-architecture-spec.md §5.
+//! Spec: darwin-docs/architecture-spec.md §5.
 //!
 //! Compiled by `cargo miden build` into `darwin_controller_pkg.masp`
 //! which `miden client new-account` deploys as a

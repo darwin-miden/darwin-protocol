@@ -1,6 +1,6 @@
 # DepositNote — consumed by the Darwin Protocol Account.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §7.1.
+# Spec: darwin-docs/architecture-spec.md §7.1.
 # Inputs: [DEPOSIT_ASSETS_VEC, RECIPIENT_ADDRESS, EXPIRY_BLOCK]
 # Effect: mints basket tokens to RECIPIENT_ADDRESS proportional to the
 # deposited assets' USD value at current Pragma prices.

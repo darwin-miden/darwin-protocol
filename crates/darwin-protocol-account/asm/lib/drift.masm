@@ -1,6 +1,6 @@
 # Portfolio drift detection — M2 rebalancing math.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §13.1 (M2 rebalancing
+# Spec: darwin-docs/architecture-spec.md §13.1 (M2 rebalancing
 # engine). The procedures here are written and tested in M1 so that
 # when M2 starts they can be wired into a `Flow B` note script
 # without re-deriving the math.

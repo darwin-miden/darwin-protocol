@@ -1,6 +1,6 @@
 # Weighted-sum primitive used by compute_nav.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §6.2.
+# Spec: darwin-docs/architecture-spec.md §6.2.
 #
 # `weighted_sum_N` computes the dot product of two N-element vectors,
 # which is the building block of a basket NAV when the basket has up to

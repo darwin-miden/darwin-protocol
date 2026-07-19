@@ -1,6 +1,6 @@
 # DarwinBasketController component — MASM source.
 #
-# Spec: see darwin-docs/m1-architecture-spec.md §5.
+# Spec: see darwin-docs/architecture-spec.md §5.
 # This file is a structured stub. The procedure bodies become real MASM
 # once the workspace pulls in the Miden v0.14 toolchain (miden-assembly,
 # miden-base, miden-stdlib).

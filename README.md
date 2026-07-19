@@ -2,7 +2,7 @@
 
 Core Darwin Protocol code on Miden: the Darwin Protocol Account, the basket-token faucets, the custom testnet asset faucets, and the note scripts (`DepositNote`, `RedeemNote`).
 
-See [`darwin-docs/m1-architecture-spec.md`](https://github.com/darwin-miden/darwin-docs/blob/main/docs/m1-architecture-spec.md) for the full specification.
+See [`darwin-docs/architecture-spec.md`](https://github.com/darwin-miden/darwin-docs/blob/main/docs/architecture-spec.md) for the full specification.
 
 ## Workspace layout
 

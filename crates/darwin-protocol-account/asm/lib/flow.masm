@@ -2,7 +2,7 @@
 # mint.masm, fees.masm, and redeem.masm into full Flow A / Flow C
 # building blocks.
 #
-# Spec: darwin-docs/m1-architecture-spec.md §9 (Flow A) and §6.5
+# Spec: darwin-docs/architecture-spec.md §9 (Flow A) and §6.5
 # (Flow C). These procedures are the closest MASM-level analogue of
 # what the DepositNote / RedeemNote scripts will execute on the
 # protocol account; they take pure values as inputs (no storage reads
